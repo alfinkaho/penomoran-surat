@@ -930,54 +930,143 @@ async function handleSaveSettings(e) {
     }
 }
 
-// Populate Dropdown Pilih Kategori Eksis di Panel Admin
-function populateExistingCategorySelect() {
-    const select = document.getElementById('existingCatSelect');
-    if (!select) return;
+// Searchable Combobox & Dropdown Handler untuk Kategori Admin
+window.handleCategorySearchInput = function(query) {
+    showCatDropdown();
 
-    const currentVal = select.value;
-    select.innerHTML = '<option value="NEW">+ -- Tambah Kategori Baru --</option>';
+    const q = (query || '').toLowerCase().trim();
+    const matches = masterCategories.filter(c => 
+        String(c.kode).toLowerCase().includes(q) || 
+        String(c.nama || '').toLowerCase().includes(q)
+    );
 
-    masterCategories.forEach(cat => {
-        const opt = document.createElement('option');
-        opt.value = cat.kode;
-        opt.text = `[EKSIS] ${cat.kode} - ${cat.nama || cat.kode}`;
-        select.appendChild(opt);
-    });
+    const isExactMatch = masterCategories.find(c => String(c.kode).trim().toLowerCase() === q);
 
-    if (currentVal && Array.from(select.options).some(o => o.value === currentVal)) {
-        select.value = currentVal;
-    }
-}
-
-// Handler saat Kategori Eksis dipilih dari Dropdown Admin
-window.handleSelectExistingCategory = function(kode) {
-    const kodeInput = document.getElementById('catKode');
-    const btnText = document.getElementById('catBtnText');
-
-    if (kode === "NEW") {
+    if (isExactMatch) {
+        window.editCategoryInForm(isExactMatch.kode);
+    } else {
+        const kodeInput = document.getElementById('catKode');
         if (kodeInput) {
-            kodeInput.value = '';
+            kodeInput.value = (query || '').trim().toUpperCase();
             kodeInput.readOnly = false;
             kodeInput.classList.remove('bg-gray-100');
         }
-        document.getElementById('catNama').value = '';
-        document.getElementById('catPattern').value = '{JENIS}/ {NO} / {BULAN_ROMAWI} / {TAHUN}';
-        document.getElementById('catKlasifikasiCheck').checked = false;
-        document.getElementById('catNomorTerakhir').value = 0;
+        const btnText = document.getElementById('catBtnText');
         if (btnText) btnText.innerText = "Simpan Kategori Baru";
-    } else {
-        window.editCategoryInForm(kode);
+    }
+
+    renderCatDropdownItems(matches, query);
+};
+
+window.showCatDropdown = function() {
+    const list = document.getElementById('catDropdownList');
+    if (list) {
+        list.classList.remove('hidden');
+        const searchInput = document.getElementById('catSearchInput');
+        const q = searchInput ? searchInput.value.toLowerCase().trim() : '';
+        const matches = masterCategories.filter(c => 
+            String(c.kode).toLowerCase().includes(q) || 
+            String(c.nama || '').toLowerCase().includes(q)
+        );
+        renderCatDropdownItems(matches, q);
     }
 };
+
+window.hideCatDropdown = function() {
+    setTimeout(() => {
+        const list = document.getElementById('catDropdownList');
+        if (list) list.classList.add('hidden');
+    }, 200);
+};
+
+function renderCatDropdownItems(categories, query) {
+    const list = document.getElementById('catDropdownList');
+    if (!list) return;
+
+    list.innerHTML = '';
+
+    // Item 1: Option Tambah Kategori Baru
+    const newItem = document.createElement('div');
+    newItem.className = "px-3 py-2 bg-blue-50 hover:bg-blue-100 text-blue-900 font-bold cursor-pointer flex items-center justify-between";
+    newItem.onclick = () => {
+        resetCatFormToNew(query ? query.toUpperCase() : '');
+        hideCatDropdown();
+    };
+    newItem.innerHTML = `<span>+ Tambah Kategori Baru ${query ? `("${escapeHtml(query.toUpperCase())}")` : ''}</span>`;
+    list.appendChild(newItem);
+
+    // Items: Matching Existing Categories
+    categories.forEach(cat => {
+        const item = document.createElement('div');
+        item.className = "px-3 py-2 hover:bg-slate-100 cursor-pointer flex items-center justify-between text-slate-800";
+        item.onclick = () => {
+            const searchInput = document.getElementById('catSearchInput');
+            if (searchInput) searchInput.value = `${cat.kode} - ${cat.nama || cat.kode}`;
+            window.editCategoryInForm(cat.kode);
+            hideCatDropdown();
+        };
+        item.innerHTML = `
+            <div>
+                <strong class="text-blue-900 font-bold">${escapeHtml(cat.kode)}</strong> 
+                <span class="text-slate-600 ml-1">- ${escapeHtml(cat.nama || cat.kode)}</span>
+            </div>
+            <span class="text-[10px] bg-amber-100 text-amber-900 font-bold px-1.5 py-0.5 rounded">EKSIS</span>
+        `;
+        list.appendChild(item);
+    });
+}
+
+window.resetCatFormToNew = function(customKode = '') {
+    const searchInput = document.getElementById('catSearchInput');
+    if (searchInput) searchInput.value = customKode;
+
+    const kodeInput = document.getElementById('catKode');
+    if (kodeInput) {
+        kodeInput.value = customKode;
+        kodeInput.readOnly = false;
+        kodeInput.classList.remove('bg-gray-100');
+    }
+
+    document.getElementById('catNama').value = '';
+    document.getElementById('catPattern').value = '{JENIS}/ {NO} / {BULAN_ROMAWI} / {TAHUN}';
+    document.getElementById('catKlasifikasiCheck').checked = false;
+    document.getElementById('catNomorTerakhir').value = 0;
+
+    const btnText = document.getElementById('catBtnText');
+    if (btnText) btnText.innerText = "Simpan Kategori Baru";
+
+    hideCatDropdown();
+};
+
+// Live Filter Daftar Pattern Kategori Aktif
+window.filterAdminCategories = function(query) {
+    const q = (query || '').toLowerCase().trim();
+    const items = document.querySelectorAll('#adminKatList > div');
+    items.forEach(item => {
+        const text = item.textContent.toLowerCase();
+        if (!q || text.includes(q)) {
+            item.classList.remove('hidden');
+        } else {
+            item.classList.add('hidden');
+        }
+    });
+};
+
+function populateExistingCategorySelect() {
+    // Dipanggil saat data master di-fetch untuk merefresh dropdown jika terbuka
+    const searchInput = document.getElementById('catSearchInput');
+    if (searchInput && searchInput.value) {
+        handleCategorySearchInput(searchInput.value);
+    }
+}
 
 // Click to Edit Category in Form Above
 window.editCategoryInForm = function(kode) {
     const cat = masterCategories.find(c => String(c.kode).trim() === String(kode).trim());
     if (!cat) return;
 
-    const existingSel = document.getElementById('existingCatSelect');
-    if (existingSel) existingSel.value = cat.kode || 'NEW';
+    const searchInput = document.getElementById('catSearchInput');
+    if (searchInput) searchInput.value = `${cat.kode} - ${cat.nama || cat.kode}`;
 
     const kodeInput = document.getElementById('catKode');
     if (kodeInput) {
@@ -1143,8 +1232,8 @@ async function handleSaveCategory(e) {
                 kodeInput.readOnly = false;
                 kodeInput.classList.remove('bg-gray-100');
             }
-            const existingSel = document.getElementById('existingCatSelect');
-            if (existingSel) existingSel.value = "NEW";
+            const searchInput = document.getElementById('catSearchInput');
+            if (searchInput) searchInput.value = "";
             fetchData();
         } else {
             showToast("Gagal", result.message, "error");

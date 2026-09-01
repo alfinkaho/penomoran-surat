@@ -441,14 +441,19 @@
                         class="bg-blue-50/60 border border-blue-200 p-4 rounded-xl mb-5 space-y-3">
                         <h4 class="font-bold text-blue-950 text-sm mb-2">Tambah / Edit Pattern Kategori Surat</h4>
 
-                        <!-- Dropdown Kategori Eksis atau Tambah Baru -->
+                        <!-- Searchable Combobox & Dropdown untuk Pilih/Cari Kategori Eksis -->
                         <div>
-                            <label class="block font-semibold mb-1 text-blue-900">Pilih Kategori Eksis atau Tambah
-                                Baru:</label>
-                            <select id="existingCatSelect" onchange="handleSelectExistingCategory(this.value)"
-                                class="w-full p-2 border border-blue-300 rounded bg-white font-medium text-xs focus:ring-2 focus:ring-blue-600">
-                                <option value="NEW">+ -- Tambah Kategori Baru --</option>
-                            </select>
+                            <label class="block font-semibold mb-1 text-blue-900">Pilih / Cari Kategori Eksis atau Tambah Baru:</label>
+                            <div class="relative">
+                                <input type="text" id="catSearchInput" oninput="handleCategorySearchInput(this.value)" onfocus="showCatDropdown()" placeholder="Cari / ketik kode kategori (ex: SPKT, RES)..." class="w-full pl-9 pr-8 py-2 text-xs border border-blue-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-600 font-medium" autocomplete="off">
+                                <span class="material-symbols-outlined absolute left-2.5 top-2 text-slate-400 text-lg pointer-events-none select-none">search</span>
+                                <button type="button" onclick="resetCatFormToNew()" class="absolute right-2 top-2 text-slate-400 hover:text-slate-600 focus:outline-none text-xs p-0.5" title="Reset Ke Mode Tambah Baru">
+                                    <i class="fa-solid fa-xmark"></i>
+                                </button>
+                                <!-- Floating Dropdown Items -->
+                                <div id="catDropdownList" class="hidden absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-lg shadow-xl z-30 max-h-48 overflow-y-auto divide-y divide-slate-100 text-xs">
+                                </div>
+                            </div>
                         </div>
 
                         <div class="grid grid-cols-2 gap-3">
@@ -513,7 +518,13 @@
                         </button>
                     </form>
 
-                    <h4 class="font-bold text-slate-800 mb-2">Daftar Pattern Kategori Aktif:</h4>
+                    <div class="flex items-center justify-between mb-2 gap-2">
+                        <h4 class="font-bold text-slate-800">Daftar Pattern Kategori Aktif:</h4>
+                        <div class="relative w-44">
+                            <input type="text" id="catListSearch" oninput="filterAdminCategories(this.value)" placeholder="Cari pattern..." class="w-full pl-7 pr-2 py-1 text-[11px] border border-slate-300 rounded-md bg-white focus:ring-1 focus:ring-blue-600">
+                            <span class="material-symbols-outlined absolute left-1.5 top-1 text-slate-400 text-sm pointer-events-none select-none">search</span>
+                        </div>
+                    </div>
                     <div id="adminKatList" class="space-y-2"></div>
                 </div>
 
@@ -626,7 +637,7 @@
     <div id="toastContainer" class="fixed bottom-4 right-4 z-50 flex flex-col gap-2 max-w-sm w-full"></div>
 
     <!-- Main JavaScript App File (dengan Cache Buster) -->
-    <script src="app.js?v=1.0.3"></script>
+    <script src="app.js?v=1.0.4"></script>
 </body>
 
 </html>
