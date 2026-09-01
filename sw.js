@@ -1,9 +1,12 @@
-const CACHE_NAME = 'penomoran-surat-v15';
-const ASSETS = [
+const CACHE_NAME = 'penomoran-surat-v16';
+const LOCAL_ASSETS = [
     './',
     './index.html',
-    './app.js?v=1.1.1',
-    './manifest.json',
+    './app.js?v=1.1.2',
+    './manifest.json'
+];
+
+const EXTERNAL_ASSETS = [
     'https://cdn.tailwindcss.com',
     'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css',
     'https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap',
@@ -14,11 +17,17 @@ const ASSETS = [
 self.addEventListener('install', (e) => {
     e.waitUntil(
         caches.open(CACHE_NAME).then(async (cache) => {
-            for (const asset of ASSETS) {
+            // Pre-cache asset lokal terlebih dahulu
+            await cache.addAll(LOCAL_ASSETS);
+            
+            // Pre-cache asset CDN pihak ketiga dengan mode 'no-cors' untuk mencegah CORS Error di Console
+            for (const url of EXTERNAL_ASSETS) {
                 try {
-                    await cache.add(asset);
+                    const req = new Request(url, { mode: 'no-cors' });
+                    const res = await fetch(req);
+                    if (res) await cache.put(req, res);
                 } catch (err) {
-                    console.warn('Pre-cache asset notice:', asset);
+                    console.warn('Notice pre-caching CDN asset:', url);
                 }
             }
         })
@@ -59,8 +68,8 @@ self.addEventListener('fetch', (e) => {
         e.respondWith(
             caches.open(CACHE_NAME).then(async (cache) => {
                 const cachedResponse = await cache.match(e.request);
-                const fetchPromise = fetch(e.request).then((networkResponse) => {
-                    if (networkResponse && networkResponse.status === 200) {
+                const fetchPromise = fetch(e.request, { mode: 'no-cors' }).then((networkResponse) => {
+                    if (networkResponse) {
                         cache.put(e.request, networkResponse.clone());
                     }
                     return networkResponse;
