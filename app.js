@@ -1529,19 +1529,54 @@ function getFilteredExportData() {
     });
 }
 
-// Generate Official Kop Header String
+// Helper Format Tanggal Bersih (Menghapus String Timezone GMT / Waktu Standar)
+function formatDateClean(dateInput) {
+    if (!dateInput) return '-';
+    let str = String(dateInput).trim();
+    
+    // Hapus string timezone GMT / Waktu Standar jika ada
+    if (str.includes('GMT') || str.includes('Waktu')) {
+        str = str.split('GMT')[0].trim();
+    }
+
+    // Jika sudah format DD/MM/YYYY
+    if (/^\d{2}\/\d{2}\/\d{4}$/.test(str)) {
+        return str;
+    }
+
+    // Jika format YYYY-MM-DD
+    if (/^\d{4}-\d{2}-\d{2}$/.test(str)) {
+        const [y, m, d] = str.split('-');
+        return `${d}/${m}/${y}`;
+    }
+
+    // Parse Date Object / JS Date String
+    const d = new Date(str);
+    if (!isNaN(d.getTime())) {
+        const day = String(d.getDate()).padStart(2, '0');
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const year = d.getFullYear();
+        return `${day}/${month}/${year}`;
+    }
+
+    return str;
+}
+
+// Generate Official Kop Header String (Format Rata Kiri Standar Polri)
 function getOfficialKopHTML(filterCategoryTitle) {
     const instansi = masterSettings.namaKesatuan || "POLSEK POLEN";
     
     return `
-        <div style="text-align: center; margin-bottom: 20px; font-family: Arial, sans-serif;">
-            <h4 style="margin:0; padding:0; text-transform:uppercase; font-size:12px; font-weight:bold; letter-spacing:1px;">KEPOLISIAN NEGARA REPUBLIK INDONESIA</h4>
-            <h4 style="margin:0; padding:0; text-transform:uppercase; font-size:12px; font-weight:bold; letter-spacing:1px;">DAERAH NUSA TENGGARA TIMUR</h4>
-            <h3 style="margin:2px 0 0 0; padding:0; text-transform:uppercase; font-size:14px; font-weight:bold; letter-spacing:1px;">RESOR TIMOR TENGAH SELATAN</h3>
-            <h2 style="margin:2px 0 6px 0; padding:0; text-transform:uppercase; font-size:16px; font-weight:800; color:#1e3a8a; letter-spacing:1px;">${escapeHtml(instansi)}</h2>
-            <div style="border-bottom: 3px double #000; margin-bottom: 15px;"></div>
-            <h3 style="margin:5px 0 2px 0; text-transform:uppercase; font-size:14px; font-weight:bold;">LAPORAN REKAPITULASI PENOMORAN SURAT</h3>
-            <p style="margin:0; font-size:11px; color:#475569;">Kategori / Filter: <b>${escapeHtml(filterCategoryTitle)}</b> | Tanggal Cetak: <b>${new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' })}</b></p>
+        <div style="text-align: left; margin-bottom: 20px; font-family: Arial, sans-serif;">
+            <div style="font-size: 11px; font-weight: bold; text-transform: uppercase; line-height: 1.2;">KEPOLISIAN NEGARA REPUBLIK INDONESIA</div>
+            <div style="font-size: 11px; font-weight: bold; text-transform: uppercase; line-height: 1.2;">DAERAH NUSA TENGGARA TIMUR</div>
+            <div style="font-size: 11px; font-weight: bold; text-transform: uppercase; line-height: 1.2;">RESOR TIMOR TENGAH SELATAN</div>
+            <div style="font-size: 12px; font-weight: bold; text-transform: uppercase; line-height: 1.2; color: #1e3a8a;">${escapeHtml(instansi)}</div>
+            <div style="border-bottom: 2px solid #000; width: 260px; margin-top: 4px; margin-bottom: 15px;"></div>
+        </div>
+        <div style="text-align: center; margin-bottom: 15px; font-family: Arial, sans-serif;">
+            <h3 style="margin:0; padding:0; text-transform:uppercase; font-size:14px; font-weight:bold;">LAPORAN REKAPITULASI PENOMORAN SURAT</h3>
+            <p style="margin:3px 0 0 0; font-size:11px; color:#475569;">Kategori: <b>${escapeHtml(filterCategoryTitle)}</b> | Tanggal Cetak: <b>${new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' })}</b></p>
         </div>
     `;
 }
@@ -1600,6 +1635,7 @@ function executeExportExcel() {
     `;
 
     filteredData.forEach((item, index) => {
+        const cleanDate = formatDateClean(item.tanggalSurat || item.timestamp);
         tableHTML += `
             <tr>
                 <td class="text-center">${index + 1}</td>
@@ -1607,7 +1643,7 @@ function executeExportExcel() {
                 <td>${escapeHtml(item.uraian || '')}</td>
                 <td>${escapeHtml(item.keperluan || '')}</td>
                 <td>${escapeHtml(item.pembuat || '')}</td>
-                <td class="text-center">${escapeHtml(item.tanggalSurat || item.timestamp || '')}</td>
+                <td class="text-center">${escapeHtml(cleanDate)}</td>
             </tr>
         `;
     });
@@ -1621,7 +1657,7 @@ function executeExportExcel() {
                     <td style="border:none; width:60%;"></td>
                     <td style="border:none; text-align:center;">
                         ${escapeHtml(masterSettings.namaKesatuan || 'POLSEK POLEN')}, ${new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' })}<br>
-                        <b>KAPOLSEK / ANOTA</b><br><br><br><br>
+                        <b>KAPOLSEK</b><br><br><br><br>
                         <u><b>________________________</b></u>
                     </td>
                 </tr>
@@ -1664,6 +1700,7 @@ function executePrintReport() {
 
     let rowsHTML = '';
     filteredData.forEach((item, index) => {
+        const cleanDate = formatDateClean(item.tanggalSurat || item.timestamp);
         rowsHTML += `
             <tr>
                 <td style="text-align: center;">${index + 1}</td>
@@ -1671,7 +1708,7 @@ function executePrintReport() {
                 <td>${escapeHtml(item.uraian || '')}</td>
                 <td>${escapeHtml(item.keperluan || '')}</td>
                 <td>${escapeHtml(item.pembuat || '')}</td>
-                <td style="text-align: center;">${escapeHtml(item.tanggalSurat || item.timestamp || '')}</td>
+                <td style="text-align: center;">${escapeHtml(cleanDate)}</td>
             </tr>
         `;
     });
@@ -1684,11 +1721,11 @@ function executePrintReport() {
             <style>
                 @page { size: A4 portrait; margin: 15mm; }
                 body { font-family: 'Times New Roman', Times, serif; font-size: 11pt; color: #000; margin: 0; padding: 0; }
-                .kop-container { text-align: center; margin-bottom: 15px; }
-                .kop-instansi { font-size: 11pt; font-weight: bold; text-transform: uppercase; margin: 0; }
-                .kop-title { font-size: 13pt; font-weight: bold; text-transform: uppercase; margin: 3px 0 0 0; }
-                .kop-sub { font-size: 15pt; font-weight: bold; text-transform: uppercase; margin: 3px 0 5px 0; }
-                .kop-line { border-bottom: 3px double #000; margin-bottom: 15px; }
+                .kop-container { text-align: left; margin-bottom: 15px; }
+                .kop-instansi { font-size: 10pt; font-weight: bold; text-transform: uppercase; margin: 0; line-height: 1.2; }
+                .kop-title { font-size: 10pt; font-weight: bold; text-transform: uppercase; margin: 0; line-height: 1.2; }
+                .kop-sub { font-size: 11pt; font-weight: bold; text-transform: uppercase; margin: 0; line-height: 1.2; color: #1e3a8a; }
+                .kop-line { border-bottom: 2px solid #000; width: 260px; margin-top: 4px; margin-bottom: 15px; }
                 .report-title { text-align: center; font-size: 12pt; font-weight: bold; text-transform: uppercase; margin-bottom: 2px; }
                 .report-sub { text-align: center; font-size: 10pt; margin-bottom: 15px; }
                 table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 10pt; }
@@ -1716,7 +1753,7 @@ function executePrintReport() {
             </div>
 
             <div class="report-title">LAPORAN REKAPITULASI PENOMORAN SURAT</div>
-            <div class="report-sub">Kategori: <b>${escapeHtml(catLabel)}</b> | Tanggal: <b>${new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' })}</b></div>
+            <div class="report-sub">Kategori: <b>${escapeHtml(catLabel)}</b> | Tanggal Cetak: <b>${new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' })}</b></div>
 
             <table>
                 <thead>
@@ -1739,7 +1776,7 @@ function executePrintReport() {
                     <td style="width: 60%;"></td>
                     <td style="text-align: center;">
                         ${escapeHtml(masterSettings.namaKesatuan || 'POLSEK POLEN')}, ${new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' })}<br>
-                        <b>KAPOLSEK / ANOTA</b><br><br><br><br><br>
+                        <b>KAPOLSEK</b><br><br><br><br><br>
                         <u><b>________________________</b></u>
                     </td>
                 </tr>
