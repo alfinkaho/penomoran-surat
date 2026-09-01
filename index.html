@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistem Penomoran Surat - POLSEK POLEN</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#1e3a8a">
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .glass-card { background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(10px); }
+    </style>
+</head>
+<body class="bg-slate-100 text-slate-800 antialiased min-h-screen flex flex-col">
+
+    <!-- Header Navigation (Ultra Adaptif, Sejajar 1 Baris di Layar HP) -->
+    <header class="bg-gradient-to-r from-blue-950 via-blue-900 to-indigo-950 text-white shadow-lg sticky top-0 z-30">
+        <div class="max-w-6xl mx-auto px-3 sm:px-4 py-2.5 flex justify-between items-center gap-2">
+            
+            <!-- KIRI: Logo, Tombol Panel Admin (Ikon Saja), & Nama Instansi -->
+            <div class="flex items-center gap-2 min-w-0">
+                <!-- Logo Perisai -->
+                <div class="w-9 h-9 sm:w-10 sm:h-10 bg-amber-400/20 border border-amber-400/40 rounded-xl flex items-center justify-center shadow-inner shrink-0">
+                    <i class="fa-solid fa-shield-halved text-xl sm:text-2xl text-amber-400"></i>
+                </div>
+
+                <!-- Tombol Panel Admin (Hanya Ikon, Posisi di Kiri Sebelah Logo) -->
+                <button id="adminTabBtn" onclick="openAdminModal()" title="Panel Admin & Pengaturan" class="hidden w-8 h-8 sm:w-9 sm:h-9 bg-amber-500 hover:bg-amber-600 text-blue-950 font-bold rounded-lg transition-all shadow flex items-center justify-center shrink-0">
+                    <i class="fa-solid fa-sliders text-sm"></i>
+                </button>
+
+                <!-- Nama Instansi & Sub-Header -->
+                <div class="min-w-0 truncate">
+                    <h1 id="headerTitle" class="text-xs sm:text-base font-extrabold tracking-wide leading-tight uppercase truncate">POLSEK POLEN</h1>
+                    <p id="headerSubTitle" class="text-[9px] sm:text-xs text-blue-200 font-medium truncate">Penomoran Surat Otomatis</p>
+                </div>
+            </div>
+
+            <!-- KANAN: User Profile Widget & Logout / Login -->
+            <div class="flex items-center gap-2 shrink-0">
+                
+                <!-- User Profile & Logout Widget (Log In State) -->
+                <div id="userProfileWidget" class="hidden flex items-center gap-2 bg-blue-900/80 border border-blue-700/60 rounded-lg px-2 py-1 text-xs shadow-sm">
+                    <div class="text-right">
+                        <div id="userNameEl" class="font-bold text-white leading-none text-[10px] sm:text-xs truncate max-w-[100px] sm:max-w-[160px]">---</div>
+                        <span id="userRoleBadge" class="inline-block px-1 py-0.2 text-[8px] sm:text-[9px] font-bold bg-amber-400 text-blue-950 rounded uppercase mt-0.5">---</span>
+                    </div>
+                    <!-- TOMBOL LOGOUT (Ikon Power Merah Ringkas) -->
+                    <button onclick="handleLogout()" title="Keluar / Logout Akun" class="w-7 h-7 hover:bg-rose-700/80 transition bg-rose-950/80 text-rose-300 hover:text-white rounded-md border border-rose-700/60 flex items-center justify-center shrink-0">
+                        <i class="fa-solid fa-power-off text-xs"></i>
+                    </button>
+                </div>
+
+                <!-- Tombol Manual Login (Saat Logged Out) -->
+                <button id="manualLoginBtn" onclick="openLoginModal()" class="text-xs bg-blue-800 hover:bg-blue-700 text-white font-bold px-2.5 py-1.5 rounded-lg border border-blue-600 transition shadow flex items-center gap-1">
+                    <i class="fa-solid fa-right-to-bracket text-xs"></i> <span>Login</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <main class="flex-grow max-w-6xl mx-auto px-4 py-6 w-full flex flex-col lg:flex-row gap-6">
+
+        <!-- Form Generator Section -->
+        <section class="w-full lg:w-5/12 flex flex-col gap-4">
+            
+            <!-- Live Preview Banner Box -->
+            <div id="livePreviewBox" class="bg-gradient-to-r from-blue-900 to-indigo-900 text-white p-4 rounded-xl shadow-md border border-blue-700 flex flex-col">
+                <div class="flex items-center justify-between text-xs text-blue-200 mb-1">
+                    <span class="font-semibold uppercase tracking-wider"><i class="fa-solid fa-eye mr-1"></i>Pratinjau Nomor Surat</span>
+                    <span class="bg-blue-800/80 px-2 py-0.5 rounded text-[10px] text-blue-100">Live Format</span>
+                </div>
+                <div id="livePreviewText" class="text-base sm:text-lg font-mono font-bold text-amber-300 tracking-wide py-2 break-all border-t border-blue-800/80 mt-1">
+                    <span class="text-blue-300 font-normal italic text-sm">Pilih jenis surat di bawah...</span>
+                </div>
+            </div>
+
+            <!-- Main Form Card -->
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 glass-card">
+                <h2 class="text-base font-bold text-slate-900 border-b pb-3 mb-4 flex items-center gap-2">
+                    <i class="fa-solid fa-file-signature text-blue-700"></i> Buat Nomor Surat Baru
+                </h2>
+
+                <form id="suratForm" onsubmit="submitSurat(event)" class="space-y-4">
+
+                    <!-- Tanggal Pemakaian Surat -->
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 mb-1">Tanggal Pemakaian Surat</label>
+                        <input type="date" id="tanggalSurat" required class="w-full text-sm border-slate-300 rounded-lg shadow-sm px-3 py-2 border focus:ring-2 focus:ring-blue-600 focus:border-blue-600 bg-slate-50">
+                    </div>
+
+                    <!-- Jenis / Kode Surat -->
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 mb-1">Jenis / Kode Surat</label>
+                        <select id="kodeSurat" required class="w-full text-sm border-slate-300 rounded-lg shadow-sm px-3 py-2 border focus:ring-2 focus:ring-blue-600 focus:border-blue-600 bg-slate-50">
+                            <option value="" disabled selected>Memuat kategori...</option>
+                        </select>
+                    </div>
+
+                    <!-- Dynamic Klasifikasi Baku Container -->
+                    <div id="klasifikasiContainer" class="hidden">
+                        <label class="block text-xs font-semibold text-slate-700 mb-1">Kode Klasifikasi (Perihal)</label>
+                        <select id="klasifikasiSelect" class="w-full text-sm border-slate-300 rounded-lg shadow-sm px-3 py-2 border focus:ring-2 focus:ring-blue-600 focus:border-blue-600 bg-slate-50 mb-2">
+                            <option value="">-- Pilih Kode Klasifikasi Baku --</option>
+                        </select>
+                        <input type="text" id="klasifikasiCustomInput" class="hidden w-full text-sm border-slate-300 rounded-lg shadow-sm px-3 py-2 border focus:ring-2 focus:ring-blue-600 focus:border-blue-600 bg-white" placeholder="Ketik kode manual ex: RES.1.24.">
+                    </div>
+
+                    <!-- Uraian / Tentang -->
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 mb-1">Uraian Perihal / Tentang</label>
+                        <textarea id="uraian" required rows="2" class="w-full text-sm border-slate-300 rounded-lg shadow-sm px-3 py-2 border focus:ring-2 focus:ring-blue-600 focus:border-blue-600 bg-slate-50" placeholder="Contoh: Laporan Pengaduan Masyarakat"></textarea>
+                    </div>
+
+                    <!-- Keperluan -->
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 mb-1">Keperluan / Tujuan</label>
+                        <input type="text" id="keperluan" required class="w-full text-sm border-slate-300 rounded-lg shadow-sm px-3 py-2 border focus:ring-2 focus:ring-blue-600 focus:border-blue-600 bg-slate-50" placeholder="Arsip / Polres / Eksternal">
+                    </div>
+
+                    <!-- Pembuat Surat Dropdown (Personil) -->
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 mb-1">Pembuat Surat (Personil)</label>
+                        <select id="pembuatSelect" required class="w-full text-sm border-slate-300 rounded-lg shadow-sm px-3 py-2 border focus:ring-2 focus:ring-blue-600 focus:border-blue-600 bg-slate-50">
+                            <option value="" disabled selected>Memuat personil...</option>
+                        </select>
+                    </div>
+
+                    <!-- Submit Button -->
+                    <button type="submit" id="submitBtn" class="w-full mt-2 bg-gradient-to-r from-blue-700 to-indigo-700 hover:from-blue-800 hover:to-indigo-800 text-white font-bold py-2.5 rounded-lg shadow-md transition-all flex justify-center items-center gap-2">
+                        <span id="btnText">Generate Nomor Surat</span>
+                        <i id="btnSpinner" class="fa-solid fa-circle-notch fa-spin hidden"></i>
+                    </button>
+                </form>
+            </div>
+        </section>
+
+        <!-- History & Log Section -->
+        <section class="w-full lg:w-7/12 bg-white rounded-xl shadow-sm border border-slate-200 p-6 flex flex-col">
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b pb-3 mb-4 gap-3">
+                <h2 class="text-base font-bold text-slate-900 flex items-center gap-2">
+                    <i class="fa-solid fa-clock-rotate-left text-blue-700"></i> Riwayat Penomoran Surat
+                </h2>
+
+                <div class="flex items-center gap-2 w-full sm:w-auto">
+                    <!-- Search Input -->
+                    <div class="relative flex-grow sm:w-48">
+                        <input type="text" id="searchInput" placeholder="Cari nomor / uraian..." class="w-full pl-8 pr-3 py-1.5 text-xs border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-600 bg-slate-50">
+                        <i class="fa-solid fa-magnifying-glass absolute left-2.5 top-2 text-slate-400 text-xs"></i>
+                    </div>
+
+                    <!-- Refresh Button -->
+                    <button onclick="fetchData()" id="refreshBtn" class="text-blue-700 hover:text-blue-900 p-1.5 bg-blue-50 hover:bg-blue-100 rounded-lg transition" title="Refresh Data">
+                        <i class="fa-solid fa-arrows-rotate text-sm"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- History Table -->
+            <div class="overflow-x-auto flex-grow">
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                        <tr class="text-[11px] font-bold text-slate-500 uppercase bg-slate-100/70 border-b border-slate-200">
+                            <th class="px-4 py-2.5 rounded-tl-lg">Nomor Surat Lengkap</th>
+                            <th class="px-4 py-2.5">Uraian / Perihal</th>
+                            <th class="px-4 py-2.5">Pembuat</th>
+                            <th class="px-4 py-2.5">Tanggal</th>
+                            <th id="thAction" class="px-4 py-2.5 rounded-tr-lg text-right hidden">Aksi</th>
+                        </tr>
+                    </thead>
+                    <tbody id="historyTable" class="divide-y divide-slate-100 text-sm">
+                        <tr>
+                            <td colspan="5" class="px-4 py-8 text-center text-slate-400">
+                                <i class="fa-solid fa-circle-notch fa-spin text-2xl mb-2 text-blue-600"></i><br>
+                                Memuat riwayat data...
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </main>
+
+    <!-- Modal Login NRP -->
+    <div id="loginModal" class="fixed inset-0 bg-blue-950/80 backdrop-blur-sm z-50 flex justify-center items-center px-4">
+        <div class="bg-white rounded-2xl shadow-2xl p-6 max-w-md w-full border border-slate-200 text-slate-800 relative">
+            <button onclick="closeLoginModal()" class="absolute top-4 right-4 text-slate-400 hover:text-slate-600 text-lg">&times;</button>
+            <div class="text-center mb-6">
+                <div class="w-14 h-14 bg-blue-900 text-amber-400 rounded-2xl mx-auto flex items-center justify-center mb-3 shadow-md border border-amber-400/30">
+                    <i class="fa-solid fa-shield-halved text-3xl"></i>
+                </div>
+                <h3 id="loginInstansiTitle" class="text-xl font-extrabold text-blue-950">Login Polsek Polen</h3>
+                <p class="text-xs text-slate-500 mt-1">Masukkan NRP & Password untuk mengakses sistem penomoran</p>
+            </div>
+
+            <form id="loginForm" onsubmit="handleLogin(event)" class="space-y-4">
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">NRP / Username</label>
+                    <div class="relative">
+                        <input type="text" id="loginNrp" required class="w-full pl-9 pr-3 py-2 text-sm border-slate-300 rounded-lg border focus:ring-2 focus:ring-blue-600 bg-slate-50" placeholder="Contoh: admin atau 78010203">
+                        <i class="fa-solid fa-id-badge absolute left-3 top-2.5 text-slate-400"></i>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">Password</label>
+                    <div class="relative">
+                        <input type="password" id="loginPassword" required class="w-full pl-9 pr-3 py-2 text-sm border-slate-300 rounded-lg border focus:ring-2 focus:ring-blue-600 bg-slate-50" placeholder="••••••••">
+                        <i class="fa-solid fa-lock absolute left-3 top-2.5 text-slate-400"></i>
+                    </div>
+                </div>
+
+                <button type="submit" id="loginBtn" class="w-full mt-2 bg-blue-900 hover:bg-blue-950 text-white font-bold py-2.5 rounded-lg shadow transition flex justify-center items-center gap-2">
+                    <span>Masuk Ke Sistem</span>
+                    <i id="loginSpinner" class="fa-solid fa-circle-notch fa-spin hidden"></i>
+                </button>
+            </form>
+            <p class="text-[11px] text-slate-400 text-center mt-4">Akun default awal: NRP `admin` | Pass `admin123`</p>
+        </div>
+    </div>
+
+    <!-- Modal Edit Surat Khusus Admin -->
+    <div id="editSuratModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden flex justify-center items-center px-4">
+        <div class="bg-white rounded-2xl shadow-2xl p-6 max-w-lg w-full border border-slate-200">
+            <div class="flex justify-between items-center border-b pb-3 mb-4">
+                <h3 class="font-bold text-base text-blue-950 flex items-center gap-2">
+                    <i class="fa-solid fa-pen-to-square text-amber-500"></i> Edit Data Penomoran Surat
+                </h3>
+                <button onclick="closeEditSuratModal()" class="text-slate-400 hover:text-slate-600 text-lg">&times;</button>
+            </div>
+
+            <form id="editSuratForm" onsubmit="handleUpdateSurat(event)" class="space-y-3 text-xs">
+                <input type="hidden" id="editRowIndex">
+
+                <div>
+                    <label class="block font-bold text-slate-700 mb-1">Nomor Surat Lengkap</label>
+                    <input type="text" id="editNomorLengkap" required class="w-full p-2 border rounded font-mono font-bold bg-slate-50 text-blue-900">
+                </div>
+
+                <div>
+                    <label class="block font-bold text-slate-700 mb-1">Uraian Perihal / Tentang</label>
+                    <textarea id="editUraian" required rows="2" class="w-full p-2 border rounded bg-slate-50"></textarea>
+                </div>
+
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block font-bold text-slate-700 mb-1">Keperluan / Tujuan</label>
+                        <input type="text" id="editKeperluan" required class="w-full p-2 border rounded bg-slate-50">
+                    </div>
+                    <div>
+                        <label class="block font-bold text-slate-700 mb-1">Tanggal Surat</label>
+                        <input type="text" id="editTanggalSurat" required class="w-full p-2 border rounded bg-slate-50" placeholder="DD/MM/YYYY">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block font-bold text-slate-700 mb-1">Pembuat Surat</label>
+                    <input type="text" id="editPembuat" required class="w-full p-2 border rounded bg-slate-50">
+                </div>
+
+                <div class="flex gap-2 pt-2">
+                    <button type="submit" class="flex-1 bg-amber-500 hover:bg-amber-600 text-blue-950 font-bold py-2 rounded shadow transition">Simpan Perubahan</button>
+                    <button type="button" onclick="closeEditSuratModal()" class="px-4 bg-slate-200 hover:bg-slate-300 font-semibold py-2 rounded transition">Batal</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal Result Generator & Copy to Clipboard -->
+    <div id="resultModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden flex justify-center items-center px-4">
+        <div class="bg-white rounded-2xl shadow-2xl p-6 max-w-md w-full text-center border border-slate-100">
+            <div class="w-12 h-12 bg-emerald-100 text-emerald-600 rounded-full mx-auto flex items-center justify-center mb-3 text-2xl">
+                <i class="fa-solid fa-circle-check"></i>
+            </div>
+            <h3 class="text-lg font-bold text-slate-900">Nomor Surat Berhasil Diterbitkan!</h3>
+            <p class="text-xs text-slate-500 mb-4">Nomor surat resmi telah tersimpan di database.</p>
+
+            <div class="bg-slate-50 border-2 border-dashed border-blue-300 p-4 rounded-xl mb-5">
+                <span id="resultNomorText" class="font-mono text-lg font-extrabold text-blue-900 select-all break-all">---</span>
+            </div>
+
+            <div class="flex gap-3">
+                <button onclick="copyResultNumber()" class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 rounded-lg shadow transition flex items-center justify-center gap-2 text-sm">
+                    <i class="fa-regular fa-copy"></i> Salin Nomor
+                </button>
+                <button onclick="closeResultModal()" class="px-4 bg-slate-200 hover:bg-slate-300 text-slate-700 font-semibold py-2.5 rounded-lg transition text-sm">
+                    Tutup
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Admin Management Panel -->
+    <div id="adminModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 hidden flex justify-center items-center px-4">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] flex flex-col overflow-hidden">
+            <!-- Modal Header -->
+            <div class="bg-blue-950 text-white px-6 py-4 flex justify-between items-center">
+                <h3 class="font-bold text-base flex items-center gap-2">
+                    <i class="fa-solid fa-sliders text-amber-400"></i> Panel Administrator & Pengaturan
+                </h3>
+                <button onclick="closeAdminModal()" class="text-slate-300 hover:text-white text-lg">&times;</button>
+            </div>
+
+            <!-- Admin Tabs Navigation -->
+            <div class="flex border-b bg-slate-50 px-6">
+                <button id="tabKatBtn" onclick="switchAdminTab('katTab')" class="px-4 py-2.5 text-sm font-semibold border-b-2 border-blue-600 text-blue-600">
+                    <i class="fa-solid fa-layer-group mr-1"></i> Kategori & Pattern
+                </button>
+                <button id="tabUserBtn" onclick="switchAdminTab('userTab')" class="px-4 py-2.5 text-sm font-medium text-gray-500 hover:text-gray-700">
+                    <i class="fa-solid fa-users-gear mr-1"></i> Data Personil & User
+                </button>
+                <button id="tabSetBtn" onclick="switchAdminTab('settingTab')" class="px-4 py-2.5 text-sm font-medium text-gray-500 hover:text-gray-700">
+                    <i class="fa-solid fa-building-shield mr-1"></i> Identitas Instansi
+                </button>
+            </div>
+
+            <!-- Modal Body Content -->
+            <div class="p-6 overflow-y-auto flex-grow text-xs">
+                
+                <!-- TAB 1: KATEGORI & BASELINE MID-YEAR -->
+                <div id="adminKatContent">
+                    <form id="catForm" onsubmit="handleSaveCategory(event)" class="bg-blue-50/60 border border-blue-200 p-4 rounded-xl mb-5 space-y-3">
+                        <h4 class="font-bold text-blue-950 text-sm mb-2">Tambah / Edit Pattern Kategori Surat</h4>
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="block font-semibold mb-1">Kode Surat (ex: BA / Sprin)</label>
+                                <input type="text" id="catKode" required class="w-full p-2 border rounded bg-white">
+                            </div>
+                            <div>
+                                <label class="block font-semibold mb-1">Nama Jenis Surat</label>
+                                <input type="text" id="catNama" required class="w-full p-2 border rounded bg-white">
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block font-semibold mb-1">Pattern Template</label>
+                            <input type="text" id="catPattern" required class="w-full p-2 border font-mono rounded bg-white" placeholder="{JENIS}/ {NO} / {BULAN_ROMAWI} / {TAHUN}">
+                            
+                            <!-- HELPER TAG BUTTONS (KLIK UNTUK SISIPKAN VARIABEL) -->
+                            <div class="mt-2 flex flex-wrap items-center gap-1.5 bg-white p-2 rounded border border-blue-100">
+                                <span class="text-[10px] font-bold text-slate-500 block w-full mb-0.5"><i class="fa-solid fa-wand-magic-sparkles text-amber-500 mr-1"></i>Klik Variabel untuk Sisipkan Ke Pattern:</span>
+                                <button type="button" onclick="insertVariableTag('{JENIS}')" class="px-2 py-1 bg-blue-100 hover:bg-blue-200 text-blue-900 font-mono font-bold rounded text-[10px] border border-blue-300 transition" title="Jenis/Kode Surat ex: B, BA, Sprin">+ {JENIS}</button>
+                                <button type="button" onclick="insertVariableTag('{NO}')" class="px-2 py-1 bg-blue-100 hover:bg-blue-200 text-blue-900 font-mono font-bold rounded text-[10px] border border-blue-300 transition" title="Nomor Urut Berseri ex: 01, 02">+ {NO}</button>
+                                <button type="button" onclick="insertVariableTag('{BULAN_ROMAWI}')" class="px-2 py-1 bg-blue-100 hover:bg-blue-200 text-blue-900 font-mono font-bold rounded text-[10px] border border-blue-300 transition" title="Bulan Romawi ex: I - XII">+ {BULAN_ROMAWI}</button>
+                                <button type="button" onclick="insertVariableTag('{KLASIFIKASI}')" class="px-2 py-1 bg-blue-100 hover:bg-blue-200 text-blue-900 font-mono font-bold rounded text-[10px] border border-blue-300 transition" title="Kode Klasifikasi Baku ex: SIP.1.1.">+ {KLASIFIKASI}</button>
+                                <button type="button" onclick="insertVariableTag('{KESATUAN}')" class="px-2 py-1 bg-amber-100 hover:bg-amber-200 text-amber-900 font-mono font-bold rounded text-[10px] border border-amber-300 transition" title="Nama Kesatuan ex: Polsek Polen">+ {KESATUAN}</button>
+                                <button type="button" onclick="insertVariableTag('{TAHUN}')" class="px-2 py-1 bg-blue-100 hover:bg-blue-200 text-blue-900 font-mono font-bold rounded text-[10px] border border-blue-300 transition" title="Tahun Surat ex: 2026">+ {TAHUN}</button>
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-2 gap-3 items-center">
+                            <div>
+                                <label class="block font-semibold mb-1">Nomor Terakhir (Baseline Mid-Year)</label>
+                                <input type="number" id="catNomorTerakhir" value="0" class="w-full p-2 border rounded bg-white" placeholder="0">
+                            </div>
+                            <div class="pt-4">
+                                <label class="inline-flex items-center gap-2 cursor-pointer">
+                                    <input type="checkbox" id="catKlasifikasiCheck" class="rounded text-blue-600">
+                                    <span class="font-semibold">Butuh Kode Klasifikasi</span>
+                                </label>
+                            </div>
+                        </div>
+                        <button type="submit" class="w-full bg-blue-800 text-white font-bold py-2 rounded hover:bg-blue-900 transition">Simpan Kategori</button>
+                    </form>
+
+                    <h4 class="font-bold text-slate-800 mb-2">Daftar Pattern Kategori Aktif:</h4>
+                    <div id="adminKatList" class="space-y-2"></div>
+                </div>
+
+                <!-- TAB 2: PERSONIL & USER -->
+                <div id="adminUserContent" class="hidden">
+                    <form id="userForm" onsubmit="handleSaveUser(event)" class="bg-blue-50/60 border border-blue-200 p-4 rounded-xl mb-5 space-y-3">
+                        <h4 class="font-bold text-blue-950 text-sm mb-2">Tambah / Edit Data Personil & Account</h4>
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="block font-semibold mb-1">NRP (Username Login)</label>
+                                <input type="text" id="userNrpInput" required class="w-full p-2 border rounded bg-white">
+                            </div>
+                            <div>
+                                <label class="block font-semibold mb-1">Password</label>
+                                <input type="password" id="userPassInput" class="w-full p-2 border rounded bg-white" placeholder="Password...">
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="block font-semibold mb-1">Nama Lengkap (Tanpa Pangkat)</label>
+                                <input type="text" id="userNamaInput" required class="w-full p-2 border rounded bg-white">
+                            </div>
+                            <div>
+                                <label class="block font-semibold mb-1">Pangkat (ex: BRIPKA / AIPDA)</label>
+                                <input type="text" id="userPangkatInput" required class="w-full p-2 border rounded bg-white">
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="block font-semibold mb-1">Jabatan</label>
+                                <input type="text" id="userJabatanInput" required class="w-full p-2 border rounded bg-white">
+                            </div>
+                            <div>
+                                <label class="block font-semibold mb-1">Role Akses</label>
+                                <select id="userRoleSelect" class="w-full p-2 border rounded bg-white">
+                                    <option value="Operator">Operator</option>
+                                    <option value="Admin">Admin</option>
+                                </select>
+                            </div>
+                        </div>
+                        <button type="submit" class="w-full bg-blue-800 text-white font-bold py-2 rounded hover:bg-blue-900 transition">Simpan Personil</button>
+                    </form>
+
+                    <h4 class="font-bold text-slate-800 mb-2">Daftar Personil Registered:</h4>
+                    <div id="adminUserList" class="space-y-2"></div>
+                </div>
+
+                <!-- TAB 3: IDENTITAS INSTANSI & BRANDING (MULTI-KESATUAN) -->
+                <div id="adminSettingContent" class="hidden">
+                    <form id="settingForm" onsubmit="handleSaveSettings(event)" class="bg-amber-50/60 border border-amber-200 p-4 rounded-xl space-y-3">
+                        <h4 class="font-bold text-amber-950 text-sm mb-1 flex items-center gap-2">
+                            <i class="fa-solid fa-building-shield text-amber-600"></i> Pengaturan Branding Instansi / Kesatuan
+                        </h4>
+                        <p class="text-[11px] text-amber-800 mb-3">Ubah nama instansi di sini agar aplikasi dapat disesuaikan untuk Polres / Polsek manapun (Siap Dijual / Komersial).</p>
+                        
+                        <div>
+                            <label class="block font-semibold mb-1">Nama Kesatuan Lengkap (Header Title)</label>
+                            <input type="text" id="settingNamaKesatuan" required class="w-full p-2 border rounded bg-white font-bold" placeholder="ex: POLRES TIMOR TENGAH SELATAN atau POLSEK POLEN">
+                        </div>
+
+                        <div>
+                            <label class="block font-semibold mb-1">Singkatan Kesatuan (Digunakan untuk tag {KESATUAN} pada surat)</label>
+                            <input type="text" id="settingSingkatan" required class="w-full p-2 border rounded bg-white" placeholder="ex: Polres TTS atau Polsek Polen">
+                        </div>
+
+                        <div>
+                            <label class="block font-semibold mb-1">Sub-Header Slogan</label>
+                            <input type="text" id="settingSubHeader" required class="w-full p-2 border rounded bg-white" placeholder="ex: Sistem Penomoran Surat Otomatis">
+                        </div>
+
+                        <button type="submit" class="w-full bg-amber-500 text-blue-950 font-bold py-2 rounded hover:bg-amber-600 transition shadow">Simpan Pengaturan Instansi</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification Container -->
+    <div id="toastContainer" class="fixed bottom-4 right-4 z-50 flex flex-col gap-2 max-w-sm w-full"></div>
+
+    <!-- Main JavaScript App File -->
+    <script src="app.js"></script>
+</body>
+</html>

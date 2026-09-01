@@ -1,0 +1,1060 @@
+/**
+ * ============================================================================
+ * FRONTEND LOGIC - PENOMORAN SURAT MULTI-KESATUAN (RE-SELLABLE)
+ * ============================================================================
+ */
+
+const GAS_API_URL = "https://script.google.com/macros/s/AKfycbwKDkKVVeT_N-8s1gt_GJC5cr_R-q-Cv6P-upRyMzR0doZh-FkiVfiS_ZTkyQqrhPClsQ/exec";
+
+// Global App State
+let currentUser = null;
+let masterSettings = {
+    namaKesatuan: "POLSEK POLEN",
+    singkatan: "Polsek Polen",
+    subHeader: "Sistem Penomoran Surat Otomatis"
+};
+let masterCategories = [];
+let masterKlasifikasi = [];
+let masterHistory = [];
+let masterUsers = [];
+
+// Inisialisasi Aplikasi saat Load
+document.addEventListener('DOMContentLoaded', () => {
+    initDefaultDate();
+    loadSession();
+    fetchData();
+    setupEventListeners();
+});
+
+// Set default tanggal surat ke hari ini (YYYY-MM-DD)
+function initDefaultDate() {
+    const dateInput = document.getElementById('tanggalSurat');
+    if (dateInput && !dateInput.value) {
+        const today = new Date();
+        const yyyy = today.getFullYear();
+        const mm = String(today.getMonth() + 1).padStart(2, '0');
+        const dd = String(today.getDate()).padStart(2, '0');
+        dateInput.value = `${yyyy}-${mm}-${dd}`;
+    }
+}
+
+// Check Local Storage Session
+function loadSession() {
+    const savedUser = localStorage.getItem('polsek_user');
+    if (savedUser) {
+        try {
+            currentUser = JSON.parse(savedUser);
+        } catch (e) {
+            currentUser = null;
+        }
+    }
+    updateAuthUI();
+}
+
+// Update Tampilan UI Berdasarkan Status Autentikasi & Role
+function updateAuthUI() {
+    const loginModal = document.getElementById('loginModal');
+    const userProfileWidget = document.getElementById('userProfileWidget');
+    const manualLoginBtn = document.getElementById('manualLoginBtn');
+    const userNameEl = document.getElementById('userNameEl');
+    const userRoleBadge = document.getElementById('userRoleBadge');
+    const adminTabBtn = document.getElementById('adminTabBtn');
+
+    if (currentUser) {
+        if (loginModal) loginModal.classList.add('hidden');
+        if (userProfileWidget) userProfileWidget.classList.remove('hidden');
+        if (manualLoginBtn) manualLoginBtn.classList.add('hidden');
+        if (userNameEl) userNameEl.innerText = `${currentUser.pangkat} ${currentUser.nama}`;
+        
+        if (userRoleBadge) {
+            userRoleBadge.innerText = currentUser.role.toUpperCase();
+            if (currentUser.role === 'Admin') {
+                userRoleBadge.className = "inline-block px-1 py-0.2 text-[8px] sm:text-[9px] font-bold bg-amber-400 text-blue-950 rounded uppercase mt-0.5 shadow-sm";
+            } else {
+                userRoleBadge.className = "inline-block px-1 py-0.2 text-[8px] sm:text-[9px] font-bold bg-blue-700 text-blue-100 rounded uppercase mt-0.5 shadow-sm";
+            }
+        }
+
+        if (adminTabBtn) {
+            if (currentUser.role === 'Admin') {
+                adminTabBtn.classList.remove('hidden');
+            } else {
+                adminTabBtn.classList.add('hidden');
+            }
+        }
+
+        autoSelectPembuat();
+
+    } else {
+        if (userProfileWidget) userProfileWidget.classList.add('hidden');
+        if (manualLoginBtn) manualLoginBtn.replaceWith(manualLoginBtn.cloneNode(true));
+        if (manualLoginBtn) manualLoginBtn.classList.remove('hidden');
+        if (adminTabBtn) adminTabBtn.classList.add('hidden');
+    }
+
+    renderHistoryTable(masterHistory);
+}
+
+function openLoginModal() {
+    const loginModal = document.getElementById('loginModal');
+    if (loginModal) loginModal.classList.remove('hidden');
+}
+
+function closeLoginModal() {
+    const loginModal = document.getElementById('loginModal');
+    if (loginModal) loginModal.classList.add('hidden');
+}
+
+// Handle Form Login NRP
+async function handleLogin(e) {
+    e.preventDefault();
+    const nrpInput = document.getElementById('loginNrp').value.trim();
+    const passInput = document.getElementById('loginPassword').value.trim();
+    const btn = document.getElementById('loginBtn');
+    const spinner = document.getElementById('loginSpinner');
+
+    if (!nrpInput || !passInput) {
+        showToast("Error", "Harap isi NRP dan Password!", "error");
+        return;
+    }
+
+    btn.disabled = true;
+    spinner.classList.remove('hidden');
+
+    try {
+        const response = await fetch(GAS_API_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify({
+                action: 'login',
+                nrp: nrpInput,
+                password: passInput
+            })
+        });
+
+        const result = await response.json();
+
+        if (result.status === 'success') {
+            currentUser = result.user;
+            localStorage.setItem('polsek_user', JSON.stringify(currentUser));
+            updateAuthUI();
+            showToast("Berhasil Login", `Selamat datang, ${currentUser.pangkat} ${currentUser.nama}`, "success");
+            document.getElementById('loginForm').reset();
+        } else {
+            showToast("Gagal Login", result.message, "error");
+        }
+    } catch (err) {
+        console.error(err);
+        showToast("Koneksi Error", "Gagal menghubungkan ke server. Cek internet.", "error");
+    } finally {
+        btn.disabled = false;
+        spinner.classList.add('hidden');
+    }
+}
+
+// Handle Logout
+function handleLogout() {
+    currentUser = null;
+    localStorage.removeItem('polsek_user');
+    updateAuthUI();
+    showToast("Logout", "Anda telah keluar dari aplikasi.", "info");
+}
+
+// Fetch Data Master (Settings, Categories, Klasifikasi, History, Users)
+async function fetchData() {
+    const refreshBtn = document.getElementById('refreshBtn');
+    if (refreshBtn) refreshBtn.classList.add('animate-spin');
+
+    if (!GAS_API_URL || GAS_API_URL.includes("GANTI_") || !GAS_API_URL.startsWith("http")) {
+        if (refreshBtn) refreshBtn.classList.remove('animate-spin');
+        showAlert("error", "URL API Belum Disetel", "Silakan atur variabel GAS_API_URL pada file app.js.");
+        return;
+    }
+
+    try {
+        const response = await fetch(GAS_API_URL);
+        if (!response.ok) throw new Error("Gagal mengambil data dari server");
+        const result = await response.json();
+
+        if (result.status === "success") {
+            if (result.settings) {
+                masterSettings = result.settings;
+                applyInstitutionalSettings(masterSettings);
+            }
+            masterCategories = result.categories || [];
+            masterKlasifikasi = result.klasifikasi || [];
+            masterHistory = result.history || [];
+            masterUsers = result.users || [];
+
+            renderCategories(masterCategories);
+            renderKlasifikasi(masterKlasifikasi);
+            renderPembuatDropdown(masterUsers);
+            renderHistoryTable(masterHistory);
+            updateLivePreview();
+        } else {
+            showToast("Error Load Data", result.message, "error");
+        }
+    } catch (err) {
+        console.error(err);
+        showToast("Koneksi Bermasalah", "Pastikan GAS_API_URL sudah benar dan terhubung internet.", "error");
+    } finally {
+        if (refreshBtn) refreshBtn.classList.remove('animate-spin');
+    }
+}
+
+// Terapkan Identitas Kesatuan Dinamis ke DOM
+function applyInstitutionalSettings(settings) {
+    const headerTitle = document.getElementById('headerTitle');
+    const headerSubTitle = document.getElementById('headerSubTitle');
+    const loginTitle = document.getElementById('loginInstansiTitle');
+
+    if (headerTitle) headerTitle.innerText = settings.namaKesatuan || "POLSEK POLEN";
+    if (headerSubTitle) headerSubTitle.innerText = settings.subHeader || "Sistem Penomoran Surat Otomatis";
+    if (loginTitle) loginTitle.innerText = `Login ${settings.namaKesatuan || 'Polsek Polen'}`;
+    
+    document.title = `Sistem Penomoran Surat - ${settings.namaKesatuan || 'Polsek Polen'}`;
+
+    const setNama = document.getElementById('settingNamaKesatuan');
+    const setSingk = document.getElementById('settingSingkatan');
+    const setSub = document.getElementById('settingSubHeader');
+
+    if (setNama) setNama.value = settings.namaKesatuan || '';
+    if (setSingk) setSingk.value = settings.singkatan || '';
+    if (setSub) setSub.value = settings.subHeader || '';
+}
+
+// Render Dropdown Kategori Surat
+function renderCategories(categories) {
+    const select = document.getElementById('kodeSurat');
+    if (!select) return;
+
+    const currentVal = select.value;
+    select.innerHTML = '<option value="" disabled selected>-- Pilih Jenis / Kode Surat --</option>';
+
+    categories.forEach(cat => {
+        const opt = document.createElement('option');
+        opt.value = cat.kode;
+        opt.text = `${cat.kode} - ${cat.nama || cat.kode}`;
+        opt.dataset.pattern = (cat.pattern && cat.pattern !== "undefined") ? cat.pattern : "{JENIS}/ {NO} / {BULAN_ROMAWI} / {TAHUN}";
+        opt.dataset.klasifikasi = cat.butuhKlasifikasi ? "true" : "false";
+        opt.dataset.nomorterakhir = cat.nomorTerakhir || 0;
+        select.appendChild(opt);
+    });
+
+    if (currentVal) select.value = currentVal;
+}
+
+// Render Dropdown Klasifikasi Baku
+function renderKlasifikasi(klasifikasiList) {
+    const select = document.getElementById('klasifikasiSelect');
+    if (!select) return;
+
+    select.innerHTML = '<option value="">-- Pilih Kode Klasifikasi Baku --</option>';
+
+    klasifikasiList.forEach(k => {
+        const opt = document.createElement('option');
+        opt.value = k.kode;
+        opt.text = `${k.kode} (${k.keterangan})`;
+        select.appendChild(opt);
+    });
+
+    const optCustom = document.createElement('option');
+    optCustom.value = "CUSTOM";
+    optCustom.text = "+ Input Kode Klasifikasi Manual / Lainnya";
+    select.appendChild(optCustom);
+}
+
+// Render Dropdown Pembuat Surat (Personil)
+function renderPembuatDropdown(usersList) {
+    const select = document.getElementById('pembuatSelect');
+    if (!select) return;
+
+    select.innerHTML = '<option value="" disabled selected>-- Pilih Personil Pembuat Surat --</option>';
+
+    usersList.forEach(u => {
+        const opt = document.createElement('option');
+        const formattedName = `${u.pangkat} ${u.nama} (${u.nrp})`;
+        opt.value = formattedName;
+        opt.text = formattedName;
+        opt.dataset.nrp = u.nrp;
+        select.appendChild(opt);
+    });
+
+    autoSelectPembuat();
+}
+
+// Auto-fill Pembuat Surat dari Current Logged-in User
+function autoSelectPembuat() {
+    if (!currentUser) return;
+    const select = document.getElementById('pembuatSelect');
+    if (!select) return;
+
+    const targetNrp = currentUser.nrp;
+    let found = false;
+
+    for (let opt of select.options) {
+        if (opt.dataset && opt.dataset.nrp === targetNrp) {
+            select.value = opt.value;
+            found = true;
+            break;
+        }
+    }
+
+    if (!found && currentUser.nama) {
+        const myName = `${currentUser.pangkat} ${currentUser.nama} (${currentUser.nrp})`;
+        const opt = document.createElement('option');
+        opt.value = myName;
+        opt.text = myName;
+        opt.dataset.nrp = currentUser.nrp;
+        select.appendChild(opt);
+        select.value = myName;
+    }
+}
+
+// Live Preview Penomoran Surat
+function updateLivePreview() {
+    const kodeSelect = document.getElementById('kodeSurat');
+    const dateInput = document.getElementById('tanggalSurat');
+    const klasSelect = document.getElementById('klasifikasiSelect');
+    const klasInput = document.getElementById('klasifikasiCustomInput');
+    const klasContainer = document.getElementById('klasifikasiContainer');
+    const livePreviewText = document.getElementById('livePreviewText');
+
+    if (!kodeSelect || !livePreviewText) return;
+
+    const selectedOption = kodeSelect.options[kodeSelect.selectedIndex];
+
+    if (!selectedOption || !selectedOption.value) {
+        livePreviewText.innerHTML = `<span class="text-blue-300 italic">Pilih jenis surat di bawah...</span>`;
+        if (klasContainer) klasContainer.classList.add('hidden');
+        return;
+    }
+
+    const kode = selectedOption.value;
+    let pattern = selectedOption.dataset.pattern;
+    if (!pattern || pattern === "undefined") {
+        pattern = "{JENIS}/ {NO} / {BULAN_ROMAWI} / {TAHUN}";
+    }
+    const butuhKlasifikasi = selectedOption.dataset.klasifikasi === "true";
+    const nomorTerakhir = parseInt(selectedOption.dataset.nomorterakhir) || 0;
+
+    if (klasContainer) {
+        if (butuhKlasifikasi) {
+            klasContainer.classList.remove('hidden');
+        } else {
+            klasContainer.classList.add('hidden');
+        }
+    }
+
+    let klasifikasiVal = "";
+    if (butuhKlasifikasi) {
+        if (klasSelect.value === "CUSTOM") {
+            klasInput.classList.remove('hidden');
+            klasifikasiVal = klasInput.value.trim();
+        } else {
+            klasInput.classList.add('hidden');
+            klasifikasiVal = klasSelect.value;
+        }
+    }
+
+    const romanMonths = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X", "XI", "XII"];
+    const d = dateInput.value ? new Date(dateInput.value) : new Date();
+    const bulanRomawi = romanMonths[d.getMonth()];
+    const tahun = d.getFullYear();
+
+    const nextUrut = (nomorTerakhir + 1).toString().padStart(2, '0');
+    const singkatanKesatuan = masterSettings.singkatan || "Polsek Polen";
+
+    let previewStr = pattern
+        .replace(/{JENIS}/g, kode)
+        .replace(/{NO}/g, nextUrut)
+        .replace(/{BULAN_ROMAWI}/g, bulanRomawi)
+        .replace(/{KLASIFIKASI}/g, klasifikasiVal || '---')
+        .replace(/{KESATUAN}/g, singkatanKesatuan)
+        .replace(/{TAHUN}/g, tahun);
+
+    previewStr = previewStr.replace(/\/+/g, '/').replace(/\/ \//g, '/').trim();
+
+    livePreviewText.innerText = previewStr;
+}
+
+// Setup Dynamic Event Listeners
+function setupEventListeners() {
+    const kodeSelect = document.getElementById('kodeSurat');
+    const dateInput = document.getElementById('tanggalSurat');
+    const klasSelect = document.getElementById('klasifikasiSelect');
+    const klasInput = document.getElementById('klasifikasiCustomInput');
+    const searchInput = document.getElementById('searchInput');
+
+    if (kodeSelect) kodeSelect.addEventListener('change', updateLivePreview);
+    if (dateInput) dateInput.addEventListener('change', updateLivePreview);
+    if (klasSelect) {
+        klasSelect.addEventListener('change', () => {
+            const klasInput = document.getElementById('klasifikasiCustomInput');
+            if (klasSelect.value === "CUSTOM") {
+                klasInput.classList.remove('hidden');
+            } else {
+                klasInput.classList.add('hidden');
+            }
+            updateLivePreview();
+        });
+    }
+    if (klasInput) klasInput.addEventListener('input', updateLivePreview);
+    if (searchInput) searchInput.addEventListener('input', filterHistory);
+}
+
+// Helper: Sisipkan tag variabel ke input pattern di Panel Admin (EKSPLISIT ATTACH TO WINDOW)
+window.insertVariableTag = function(tag) {
+    const input = document.getElementById('catPattern');
+    if (!input) return;
+
+    const currentVal = input.value.trim();
+    if (currentVal.length > 0 && !currentVal.endsWith(' ') && !currentVal.endsWith('/')) {
+        input.value = currentVal + ' / ' + tag;
+    } else {
+        input.value = currentVal + (currentVal.length > 0 ? ' ' : '') + tag;
+    }
+    input.focus();
+};
+
+// Submit Form Penomoran Surat Baru
+async function submitSurat(e) {
+    e.preventDefault();
+
+    if (!currentUser) {
+        showToast("Akses Ditolak", "Silakan login terlebih dahulu!", "error");
+        openLoginModal();
+        return;
+    }
+
+    const kodeSurat = document.getElementById('kodeSurat').value;
+    const tanggalSurat = document.getElementById('tanggalSurat').value;
+    const pembuat = document.getElementById('pembuatSelect').value;
+    const uraian = document.getElementById('uraian').value.trim();
+    const keperluan = document.getElementById('keperluan').value.trim();
+    
+    const klasSelect = document.getElementById('klasifikasiSelect');
+    const klasInput = document.getElementById('klasifikasiCustomInput');
+    let klasifikasi = "";
+
+    if (klasSelect.value === "CUSTOM") {
+        klasifikasi = klasInput.value.trim();
+    } else {
+        klasifikasi = klasSelect.value;
+    }
+
+    if (!kodeSurat || !uraian || !pembuat) {
+        showToast("Form Tidak Lengkap", "Harap isi semua bidang formulir!", "error");
+        return;
+    }
+
+    const btn = document.getElementById('submitBtn');
+    const spinner = document.getElementById('btnSpinner');
+    const btnText = document.getElementById('btnText');
+
+    btn.disabled = true;
+    spinner.classList.remove('hidden');
+    btnText.innerText = "Memproses...";
+
+    try {
+        const response = await fetch(GAS_API_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify({
+                action: 'createSurat',
+                kodeSurat: kodeSurat,
+                klasifikasi: klasifikasi,
+                uraian: uraian,
+                keperluan: keperluan,
+                tanggalSurat: tanggalSurat,
+                pembuat: pembuat,
+                userNrp: currentUser.nrp
+            })
+        });
+
+        const result = await response.json();
+
+        if (result.status === "success") {
+            const finalNum = result.nomorSurat || result.nomor || "Nomor Surat Diterbitkan";
+            showResultModal(finalNum);
+            document.getElementById('suratForm').reset();
+            initDefaultDate();
+            autoSelectPembuat();
+            fetchData();
+        } else {
+            showToast("Gagal Tersimpan", result.message, "error");
+        }
+    } catch (err) {
+        console.error(err);
+        showToast("Error Jaringan", "Gagal mengirim data. Periksa koneksi internet.", "error");
+    } finally {
+        btn.disabled = false;
+        spinner.classList.add('hidden');
+        btnText.innerText = "Generate Nomor Surat";
+    }
+}
+
+// Render Table History (Dilengkapi Fitur Edit & Delete Khusus Admin)
+function renderHistoryTable(historyList) {
+    const tbody = document.getElementById('historyTable');
+    const thAction = document.getElementById('thAction');
+    if (!tbody) return;
+
+    const isAdmin = currentUser && currentUser.role === 'Admin';
+    if (thAction) {
+        if (isAdmin) thAction.classList.remove('hidden');
+        else thAction.classList.add('hidden');
+    }
+
+    tbody.innerHTML = '';
+
+    if (historyList.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="${isAdmin ? 5 : 4}" class="px-4 py-6 text-center text-gray-400 italic">Belum ada riwayat penomoran surat.</td></tr>`;
+        return;
+    }
+
+    historyList.forEach(item => {
+        const tr = document.createElement('tr');
+        tr.className = "hover:bg-blue-50/50 transition-colors border-b border-gray-100 group";
+
+        const tdNomor = document.createElement('td');
+        tdNomor.className = "px-4 py-3 font-semibold text-blue-900 whitespace-nowrap flex items-center justify-between";
+        tdNomor.innerHTML = `
+            <span>${escapeHtml(item.nomorLengkap)}</span>
+            <button onclick="copyToClipboard('${escapeHtml(item.nomorLengkap)}')" title="Salin Nomor Surat" class="opacity-0 group-hover:opacity-100 text-blue-600 hover:text-blue-800 transition px-2 py-1 bg-blue-100 rounded text-xs">
+                <i class="fa-regular fa-copy"></i>
+            </button>
+        `;
+
+        const tdUraian = document.createElement('td');
+        tdUraian.className = "px-4 py-3 text-gray-700 text-sm max-w-xs truncate";
+        tdUraian.title = item.uraian;
+        tdUraian.textContent = item.uraian;
+
+        const tdPembuat = document.createElement('td');
+        tdPembuat.className = "px-4 py-3 text-gray-600 text-xs whitespace-nowrap";
+        tdPembuat.textContent = item.pembuat;
+
+        const tdWaktu = document.createElement('td');
+        tdWaktu.className = "px-4 py-3 text-gray-400 text-xs whitespace-nowrap";
+        tdWaktu.textContent = item.tanggalSurat || item.timestamp;
+
+        tr.appendChild(tdNomor);
+        tr.appendChild(tdUraian);
+        tr.appendChild(tdPembuat);
+        tr.appendChild(tdWaktu);
+
+        if (isAdmin) {
+            const tdAction = document.createElement('td');
+            tdAction.className = "px-4 py-3 text-right whitespace-nowrap";
+            
+            const btnEdit = document.createElement('button');
+            btnEdit.className = "px-2 py-1 bg-amber-500 hover:bg-amber-600 text-white rounded text-xs mr-1 shadow-sm transition";
+            btnEdit.title = "Edit Data Surat";
+            btnEdit.innerHTML = `<i class="fa-solid fa-pen"></i>`;
+            btnEdit.onclick = () => openEditSuratModal(item);
+
+            const btnDelete = document.createElement('button');
+            btnDelete.className = "px-2 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded text-xs shadow-sm transition";
+            btnDelete.title = "Hapus Data Surat";
+            btnDelete.innerHTML = `<i class="fa-solid fa-trash"></i>`;
+            btnDelete.onclick = () => handleDeleteSurat(item);
+
+            tdAction.appendChild(btnEdit);
+            tdAction.appendChild(btnDelete);
+            tr.appendChild(tdAction);
+        }
+
+        tbody.appendChild(tr);
+    });
+}
+
+// Modal Edit Data Surat (Khusus Admin)
+function openEditSuratModal(item) {
+    if (!currentUser || currentUser.role !== 'Admin') return;
+    
+    document.getElementById('editRowIndex').value = item.rowIndex || '';
+    document.getElementById('editNomorLengkap').value = item.nomorLengkap || '';
+    document.getElementById('editUraian').value = item.uraian || '';
+    document.getElementById('editKeperluan').value = item.keperluan || '';
+    document.getElementById('editPembuat').value = item.pembuat || '';
+    document.getElementById('editTanggalSurat').value = item.tanggalSurat || '';
+
+    const modal = document.getElementById('editSuratModal');
+    if (modal) modal.classList.remove('hidden');
+}
+
+function closeEditSuratModal() {
+    const modal = document.getElementById('editSuratModal');
+    if (modal) modal.classList.add('hidden');
+}
+
+// Handler Submit Update Data Surat (Khusus Admin)
+async function handleUpdateSurat(e) {
+    e.preventDefault();
+    const rowIndex = document.getElementById('editRowIndex').value;
+    const nomorLengkap = document.getElementById('editNomorLengkap').value.trim();
+    const uraian = document.getElementById('editUraian').value.trim();
+    const keperluan = document.getElementById('editKeperluan').value.trim();
+    const pembuat = document.getElementById('editPembuat').value.trim();
+    const tanggalSurat = document.getElementById('editTanggalSurat').value.trim();
+
+    try {
+        const response = await fetch(GAS_API_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify({
+                action: 'updateSurat',
+                rowIndex, nomorLengkap, uraian, keperluan, pembuat, tanggalSurat
+            })
+        });
+
+        const result = await response.json();
+        if (result.status === 'success') {
+            showToast("Berhasil Edit", result.message, "success");
+            closeEditSuratModal();
+            fetchData();
+        } else {
+            showToast("Gagal", result.message, "error");
+        }
+    } catch (err) {
+        showToast("Error", "Gagal memperbarui data surat.", "error");
+    }
+}
+
+// Handler Delete Data Surat (Khusus Admin)
+async function handleDeleteSurat(item) {
+    if (!confirm(`Hapus data surat "${item.nomorLengkap}"?`)) return;
+
+    try {
+        const response = await fetch(GAS_API_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify({
+                action: 'deleteSurat',
+                rowIndex: item.rowIndex
+            })
+        });
+
+        const result = await response.json();
+        if (result.status === 'success') {
+            showToast("Berhasil Hapus", result.message, "info");
+            fetchData();
+        } else {
+            showToast("Gagal Hapus", result.message, "error");
+        }
+    } catch (err) {
+        showToast("Error", "Gagal menghapus data surat.", "error");
+    }
+}
+
+// Live Filter/Search Riwayat Surat
+function filterHistory() {
+    const query = document.getElementById('searchInput').value.toLowerCase().trim();
+    if (!query) {
+        renderHistoryTable(masterHistory);
+        return;
+    }
+
+    const filtered = masterHistory.filter(item => {
+        return (item.nomorLengkap && item.nomorLengkap.toLowerCase().includes(query)) ||
+               (item.uraian && item.uraian.toLowerCase().includes(query)) ||
+               (item.pembuat && item.pembuat.toLowerCase().includes(query)) ||
+               (item.keperluan && item.keperluan.toLowerCase().includes(query));
+    });
+
+    renderHistoryTable(filtered);
+}
+
+// Modal Result Generator & Copy Button
+function showResultModal(nomorSurat) {
+    const resultModal = document.getElementById('resultModal');
+    const resultText = document.getElementById('resultNomorText');
+    if (resultText) resultText.innerText = nomorSurat;
+    if (resultModal) resultModal.classList.remove('hidden');
+}
+
+function closeResultModal() {
+    const resultModal = document.getElementById('resultModal');
+    if (resultModal) resultModal.classList.add('hidden');
+}
+
+function copyResultNumber() {
+    const resultText = document.getElementById('resultNomorText').innerText;
+    copyToClipboard(resultText);
+}
+
+function copyToClipboard(text) {
+    navigator.clipboard.writeText(text).then(() => {
+        showToast("Tersalin!", `Nomor "${text}" berhasil disalin ke clipboard.`, "success");
+    }).catch(err => {
+        console.error(err);
+        showToast("Gagal Salin", "Terjadi kesalahan saat menyalin ke clipboard.", "error");
+    });
+}
+
+function escapeHtml(str) {
+    if (!str) return '';
+    return String(str)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+}
+
+function showToast(title, message, type = "info") {
+    const container = document.getElementById('toastContainer');
+    if (!container) return;
+
+    const toast = document.createElement('div');
+    let bg = "bg-blue-900 border-blue-700 text-white";
+    let icon = `<i class="fa-solid fa-circle-info text-blue-300 mr-2"></i>`;
+
+    if (type === "success") {
+        bg = "bg-emerald-800 border-emerald-600 text-white";
+        icon = `<i class="fa-solid fa-circle-check text-emerald-300 mr-2"></i>`;
+    } else if (type === "error") {
+        bg = "bg-rose-900 border-rose-700 text-white";
+        icon = `<i class="fa-solid fa-circle-exclamation text-rose-300 mr-2"></i>`;
+    }
+
+    toast.className = `${bg} border rounded-lg shadow-lg px-4 py-3 text-sm flex items-center justify-between transition-all duration-300 transform translate-y-2 opacity-0 mb-2`;
+    toast.innerHTML = `
+        <div class="flex items-center">
+            ${icon}
+            <div>
+                <strong class="block font-semibold">${escapeHtml(title)}</strong>
+                <span class="text-xs text-opacity-90">${escapeHtml(message)}</span>
+            </div>
+        </div>
+        <button onclick="this.parentElement.remove()" class="ml-4 text-gray-300 hover:text-white">&times;</button>
+    `;
+
+    container.appendChild(toast);
+
+    setTimeout(() => {
+        toast.classList.remove('translate-y-2', 'opacity-0');
+    }, 10);
+
+    setTimeout(() => {
+        toast.classList.add('opacity-0', 'translate-y-2');
+        setTimeout(() => toast.remove(), 300);
+    }, 4000);
+}
+
+// Modal Admin Control & Tabs
+function openAdminModal(tabName = 'katTab') {
+    if (!currentUser || currentUser.role !== 'Admin') {
+        showToast("Ditolak", "Hanya Admin yang dapat mengakses menu ini.", "error");
+        return;
+    }
+    const adminModal = document.getElementById('adminModal');
+    if (adminModal) adminModal.classList.remove('hidden');
+    switchAdminTab(tabName);
+}
+
+function closeAdminModal() {
+    const adminModal = document.getElementById('adminModal');
+    if (adminModal) adminModal.classList.add('hidden');
+}
+
+function switchAdminTab(tabName) {
+    const katTab = document.getElementById('adminKatContent');
+    const userTab = document.getElementById('adminUserContent');
+    const setTab = document.getElementById('adminSettingContent');
+    
+    const btnKat = document.getElementById('tabKatBtn');
+    const btnUser = document.getElementById('tabUserBtn');
+    const btnSet = document.getElementById('tabSetBtn');
+
+    if (katTab) katTab.classList.add('hidden');
+    if (userTab) userTab.classList.add('hidden');
+    if (setTab) setTab.classList.add('hidden');
+
+    if (btnKat) btnKat.className = "px-4 py-2.5 text-sm font-medium text-gray-500 hover:text-gray-700";
+    if (btnUser) btnUser.className = "px-4 py-2.5 text-sm font-medium text-gray-500 hover:text-gray-700";
+    if (btnSet) btnSet.className = "px-4 py-2.5 text-sm font-medium text-gray-500 hover:text-gray-700";
+
+    if (tabName === 'katTab') {
+        if (katTab) katTab.classList.remove('hidden');
+        if (btnKat) btnKat.className = "px-4 py-2.5 text-sm font-semibold border-b-2 border-blue-600 text-blue-600";
+        renderAdminCategories();
+    } else if (tabName === 'userTab') {
+        if (userTab) userTab.classList.remove('hidden');
+        if (btnUser) btnUser.className = "px-4 py-2.5 text-sm font-semibold border-b-2 border-blue-600 text-blue-600";
+        renderAdminUsers();
+    } else if (tabName === 'settingTab') {
+        if (setTab) setTab.classList.remove('hidden');
+        if (btnSet) btnSet.className = "px-4 py-2.5 text-sm font-semibold border-b-2 border-blue-600 text-blue-600";
+    }
+}
+
+// Save Institutional Settings (Admin)
+async function handleSaveSettings(e) {
+    e.preventDefault();
+    const namaKesatuan = document.getElementById('settingNamaKesatuan').value.trim();
+    const singkatan = document.getElementById('settingSingkatan').value.trim();
+    const subHeader = document.getElementById('settingSubHeader').value.trim();
+
+    try {
+        const response = await fetch(GAS_API_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify({
+                action: 'saveSettings',
+                namaKesatuan, singkatan, subHeader
+            })
+        });
+
+        const result = await response.json();
+        if (result.status === 'success') {
+            showToast("Berhasil", result.message, "success");
+            masterSettings = { namaKesatuan, singkatan, subHeader };
+            applyInstitutionalSettings(masterSettings);
+            updateLivePreview();
+        } else {
+            showToast("Gagal", result.message, "error");
+        }
+    } catch (err) {
+        showToast("Error", "Gagal menyimpan pengaturan instansi.", "error");
+    }
+}
+
+// Click to Edit Category in Form Above
+window.editCategoryInForm = function(kode) {
+    const cat = masterCategories.find(c => String(c.kode).trim() === String(kode).trim());
+    if (!cat) return;
+
+    document.getElementById('catKode').value = cat.kode || '';
+    document.getElementById('catNama').value = cat.nama || '';
+    document.getElementById('catPattern').value = (cat.pattern && cat.pattern !== "undefined") ? cat.pattern : "{JENIS}/ {NO} / {BULAN_ROMAWI} / {TAHUN}";
+    document.getElementById('catKlasifikasiCheck').checked = cat.butuhKlasifikasi || false;
+    document.getElementById('catNomorTerakhir').value = cat.nomorTerakhir || 0;
+
+    const catForm = document.getElementById('catForm');
+    if (catForm) {
+        catForm.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        catForm.classList.add('ring-2', 'ring-amber-400');
+        setTimeout(() => catForm.classList.remove('ring-2', 'ring-amber-400'), 1500);
+    }
+    showToast("Mode Edit Kategori", `Data "${cat.kode}" dimuat ke formulir di atas.`, "info");
+};
+
+// Click to Edit User in Form Above
+window.editUserInForm = function(nrp) {
+    const u = masterUsers.find(user => String(user.nrp).trim() === String(nrp).trim());
+    if (!u) return;
+
+    document.getElementById('userNrpInput').value = u.nrp || '';
+    document.getElementById('userPassInput').value = '';
+    document.getElementById('userNamaInput').value = u.nama || '';
+    document.getElementById('userPangkatInput').value = u.pangkat || '';
+    document.getElementById('userJabatanInput').value = u.jabatan || '';
+    document.getElementById('userRoleSelect').value = u.role || 'Operator';
+
+    const userForm = document.getElementById('userForm');
+    if (userForm) {
+        userForm.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        userForm.classList.add('ring-2', 'ring-amber-400');
+        setTimeout(() => userForm.classList.remove('ring-2', 'ring-amber-400'), 1500);
+    }
+    showToast("Mode Edit Personil", `Data NRP "${u.nrp}" dimuat ke formulir di atas.`, "info");
+};
+
+// Admin Category Management Render
+function renderAdminCategories() {
+    const list = document.getElementById('adminKatList');
+    if (!list) return;
+
+    list.innerHTML = '';
+    masterCategories.forEach(cat => {
+        const item = document.createElement('div');
+        item.className = "p-3 bg-gray-50 hover:bg-blue-50/60 border rounded-lg flex justify-between items-center text-xs mb-2 transition cursor-pointer group";
+        const displayPattern = (cat.pattern && cat.pattern !== "undefined") ? cat.pattern : "{JENIS}/ {NO} / {BULAN_ROMAWI} / {TAHUN}";
+        
+        item.onclick = (e) => {
+            if (e.target.closest('.btn-delete-cat')) return;
+            window.editCategoryInForm(cat.kode);
+        };
+
+        item.innerHTML = `
+            <div>
+                <div class="flex items-center gap-1.5 mb-1">
+                    <strong class="text-sm font-bold text-blue-900 group-hover:text-blue-700">${escapeHtml(cat.kode)}</strong> 
+                    <span class="text-gray-600">- ${escapeHtml(cat.nama || cat.kode)}</span>
+                    <span class="text-[10px] bg-amber-100 text-amber-900 font-bold px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 transition"><i class="fa-solid fa-pen text-[9px] mr-1"></i>Klik untuk Edit</span>
+                </div>
+                <code class="text-gray-600 bg-white px-1.5 py-0.5 rounded border">${escapeHtml(displayPattern)}</code><br>
+                <span class="text-gray-500 mt-1 block">Nomor Terakhir (Baseline): <b class="text-blue-700">${cat.nomorTerakhir || 0}</b></span>
+            </div>
+            <div class="flex gap-1.5">
+                <button onclick="window.editCategoryInForm('${escapeHtml(cat.kode)}')" class="px-2 py-1 bg-amber-500 hover:bg-amber-600 text-white rounded shadow-sm" title="Edit Kategori"><i class="fa-solid fa-pen"></i></button>
+                <button onclick="deleteCategory('${escapeHtml(cat.kode)}')" class="btn-delete-cat px-2 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded shadow-sm" title="Hapus Kategori"><i class="fa-solid fa-trash"></i></button>
+            </div>
+        `;
+        list.appendChild(item);
+    });
+}
+
+// Admin Users Management Render
+function renderAdminUsers() {
+    const list = document.getElementById('adminUserList');
+    if (!list) return;
+
+    list.innerHTML = '';
+    masterUsers.forEach(u => {
+        const item = document.createElement('div');
+        item.className = "p-3 bg-gray-50 hover:bg-blue-50/60 border rounded-lg flex justify-between items-center text-xs mb-2 transition cursor-pointer group";
+        
+        item.onclick = (e) => {
+            if (e.target.closest('.btn-delete-user')) return;
+            window.editUserInForm(u.nrp);
+        };
+
+        item.innerHTML = `
+            <div>
+                <div class="flex items-center gap-1.5 mb-0.5">
+                    <strong class="text-sm font-bold text-gray-900 group-hover:text-blue-700">${escapeHtml(u.pangkat)} ${escapeHtml(u.nama)}</strong> 
+                    <span class="text-gray-500">(${escapeHtml(u.nrp)})</span>
+                    <span class="text-[10px] bg-amber-100 text-amber-900 font-bold px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 transition"><i class="fa-solid fa-pen text-[9px] mr-1"></i>Klik untuk Edit</span>
+                </div>
+                <span class="text-gray-600">Jabatan: ${escapeHtml(u.jabatan)}</span> | <span class="font-bold text-blue-700">${escapeHtml(u.role)}</span>
+            </div>
+            <div class="flex gap-1.5">
+                <button onclick="window.editUserInForm('${escapeHtml(u.nrp)}')" class="px-2 py-1 bg-amber-500 hover:bg-amber-600 text-white rounded shadow-sm" title="Edit Personil"><i class="fa-solid fa-pen"></i></button>
+                <button onclick="deleteUser('${escapeHtml(u.nrp)}')" class="btn-delete-user px-2 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded shadow-sm" title="Hapus Personil"><i class="fa-solid fa-user-xmark"></i></button>
+            </div>
+        `;
+        list.appendChild(item);
+    });
+}
+
+// Save Category Admin
+async function handleSaveCategory(e) {
+    e.preventDefault();
+    const kode = document.getElementById('catKode').value.trim();
+    const nama = document.getElementById('catNama').value.trim();
+    const pattern = document.getElementById('catPattern').value.trim();
+    const butuhKlasifikasi = document.getElementById('catKlasifikasiCheck').checked;
+    const nomorTerakhir = parseInt(document.getElementById('catNomorTerakhir').value) || 0;
+
+    try {
+        const response = await fetch(GAS_API_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify({
+                action: 'saveCategory',
+                kode, nama, pattern, butuhKlasifikasi, nomorTerakhir
+            })
+        });
+
+        const result = await response.json();
+        if (result.status === 'success') {
+            showToast("Berhasil", result.message, "success");
+            document.getElementById('catForm').reset();
+            fetchData();
+        } else {
+            showToast("Gagal", result.message, "error");
+        }
+    } catch (err) {
+        showToast("Error", "Gagal menyimpan kategori.", "error");
+    }
+}
+
+// Save User Admin
+async function handleSaveUser(e) {
+    e.preventDefault();
+    const nrp = document.getElementById('userNrpInput').value.trim();
+    const password = document.getElementById('userPassInput').value.trim();
+    const nama = document.getElementById('userNamaInput').value.trim();
+    const pangkat = document.getElementById('userPangkatInput').value.trim();
+    const jabatan = document.getElementById('userJabatanInput').value.trim();
+    const role = document.getElementById('userRoleSelect').value;
+
+    try {
+        const response = await fetch(GAS_API_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify({
+                action: 'saveUser',
+                nrp, password, nama, pangkat, jabatan, role, status: 'Aktif'
+            })
+        });
+
+        const result = await response.json();
+        if (result.status === 'success') {
+            showToast("Berhasil", result.message, "success");
+            document.getElementById('userForm').reset();
+            fetchData();
+        } else {
+            showToast("Gagal", result.message, "error");
+        }
+    } catch (err) {
+        showToast("Error", "Gagal menyimpan user.", "error");
+    }
+}
+
+// Delete Operations Admin
+async function deleteCategory(kode) {
+    if (!confirm(`Hapus kategori "${kode}"?`)) return;
+    try {
+        const response = await fetch(GAS_API_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify({ action: 'deleteCategory', kode })
+        });
+        const result = await response.json();
+        showToast("Hapus Kategori", result.message, "info");
+        fetchData();
+    } catch (err) {
+        showToast("Error", "Gagal menghapus.", "error");
+    }
+}
+
+async function deleteUser(nrp) {
+    if (!confirm(`Hapus personil NRP "${nrp}"?`)) return;
+    try {
+        const response = await fetch(GAS_API_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify({ action: 'deleteUser', nrp })
+        });
+        const result = await response.json();
+        showToast("Hapus Personil", result.message, "info");
+        fetchData();
+    } catch (err) {
+        showToast("Error", "Gagal menghapus.", "error");
+    }
+}
+
+window.deleteCategory = deleteCategory;
+window.deleteUser = deleteUser;
+window.handleLogout = handleLogout;
+window.openAdminModal = openAdminModal;
+window.closeAdminModal = closeAdminModal;
+window.switchAdminTab = switchAdminTab;
+window.handleSaveSettings = handleSaveSettings;
+window.handleSaveCategory = handleSaveCategory;
+window.handleSaveUser = handleSaveUser;
+window.openLoginModal = openLoginModal;
+window.closeLoginModal = closeLoginModal;
+window.handleLogin = handleLogin;
+window.submitSurat = submitSurat;
+window.openEditSuratModal = openEditSuratModal;
+window.closeEditSuratModal = closeEditSuratModal;
+window.handleUpdateSurat = handleUpdateSurat;
+window.handleDeleteSurat = handleDeleteSurat;
+window.fetchData = fetchData;
+window.copyResultNumber = copyResultNumber;
+window.closeResultModal = closeResultModal;
+window.copyToClipboard = copyToClipboard;
+
+// Service Worker Registration for PWA
+if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js')
+            .then(reg => console.log('SW Registered:', reg.scope))
+            .catch(err => console.log('SW Registration failed:', err));
+    });
+}

@@ -1,0 +1,11 @@
+/*
+  Access-Control-Allow-Origin: *
+  Access-Control-Allow-Methods: GET, POST, OPTIONS
+  Access-Control-Allow-Headers: Content-Type
+
+/manifest.json
+  Content-Type: application/manifest+json
+
+/sw.js
+  Content-Type: application/javascript
+  Cache-Control: no-cache
