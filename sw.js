@@ -1,8 +1,8 @@
-const CACHE_NAME = 'penomoran-surat-v6';
+const CACHE_NAME = 'penomoran-surat-v7';
 const ASSETS = [
     './',
     './index.html',
-    './app.js?v=1.0.2',
+    './app.js?v=1.0.3',
     './manifest.json'
 ];
 
