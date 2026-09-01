@@ -166,14 +166,14 @@ function handleLogout() {
     closeAdminModal();
     closeEditSuratModal();
 
-    // Reset form penomoran & dropdown pembuat
+    // Reset form penomoran
     const suratForm = document.getElementById('suratForm');
     if (suratForm) suratForm.reset();
 
     updateAuthUI();
 
-    // Otomatis refresh / reload halaman aplikasi secara penuh
-    window.location.reload();
+    // Paksa reload penuh halaman aplikasi secara langsung
+    window.location.href = window.location.origin + window.location.pathname;
 }
 
 // Fetch Data Master (Settings, Categories, Klasifikasi, History, Users)
