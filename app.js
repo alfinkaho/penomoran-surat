@@ -87,9 +87,13 @@ function updateAuthUI() {
 
     } else {
         if (userProfileWidget) userProfileWidget.classList.add('hidden');
-        if (manualLoginBtn) manualLoginBtn.replaceWith(manualLoginBtn.cloneNode(true));
         if (manualLoginBtn) manualLoginBtn.classList.remove('hidden');
         if (adminTabBtn) adminTabBtn.classList.add('hidden');
+
+        const pembuatSelect = document.getElementById('pembuatSelect');
+        if (pembuatSelect && pembuatSelect.selectedIndex > 0) {
+            pembuatSelect.selectedIndex = 0;
+        }
     }
 
     renderHistoryTable(masterHistory);
@@ -156,8 +160,26 @@ async function handleLogin(e) {
 function handleLogout() {
     currentUser = null;
     localStorage.removeItem('polsek_user');
+
+    // Tutup semua modal yang terbuka
+    closeAdminModal();
+    closeEditSuratModal();
+
+    // Reset form penomoran & dropdown pembuat
+    const suratForm = document.getElementById('suratForm');
+    if (suratForm) suratForm.reset();
+    initDefaultDate();
+
+    const pembuatSelect = document.getElementById('pembuatSelect');
+    if (pembuatSelect) pembuatSelect.selectedIndex = 0;
+
+    // Perbarui UI secara instan tanpa perlu refresh
     updateAuthUI();
-    showToast("Logout", "Anda telah keluar dari aplikasi.", "info");
+
+    showToast("Logout Berhasil", "Anda telah keluar dari aplikasi.", "info");
+
+    // Langsung buka modal login agar pengguna dapat langsung bereaksi
+    openLoginModal();
 }
 
 // Fetch Data Master (Settings, Categories, Klasifikasi, History, Users)
@@ -592,12 +614,20 @@ function closeEditSuratModal() {
 // Handler Submit Update Data Surat (Khusus Admin)
 async function handleUpdateSurat(e) {
     e.preventDefault();
+    const btn = document.getElementById('editSuratBtn');
+    const spinner = document.getElementById('editSuratSpinner');
+    const btnText = document.getElementById('editSuratBtnText');
+
     const rowIndex = document.getElementById('editRowIndex').value;
     const nomorLengkap = document.getElementById('editNomorLengkap').value.trim();
     const uraian = document.getElementById('editUraian').value.trim();
     const keperluan = document.getElementById('editKeperluan').value.trim();
     const pembuat = document.getElementById('editPembuat').value.trim();
     const tanggalSurat = document.getElementById('editTanggalSurat').value.trim();
+
+    if (btn) btn.disabled = true;
+    if (spinner) spinner.classList.remove('hidden');
+    if (btnText) btnText.innerText = "Menyimpan...";
 
     try {
         const response = await fetch(GAS_API_URL, {
@@ -619,6 +649,10 @@ async function handleUpdateSurat(e) {
         }
     } catch (err) {
         showToast("Error", "Gagal memperbarui data surat.", "error");
+    } finally {
+        if (btn) btn.disabled = false;
+        if (spinner) spinner.classList.add('hidden');
+        if (btnText) btnText.innerText = "Simpan Perubahan";
     }
 }
 
@@ -793,9 +827,17 @@ function switchAdminTab(tabName) {
 // Save Institutional Settings (Admin)
 async function handleSaveSettings(e) {
     e.preventDefault();
+    const btn = document.getElementById('settingBtn');
+    const spinner = document.getElementById('settingSpinner');
+    const btnText = document.getElementById('settingBtnText');
+
     const namaKesatuan = document.getElementById('settingNamaKesatuan').value.trim();
     const singkatan = document.getElementById('settingSingkatan').value.trim();
     const subHeader = document.getElementById('settingSubHeader').value.trim();
+
+    if (btn) btn.disabled = true;
+    if (spinner) spinner.classList.remove('hidden');
+    if (btnText) btnText.innerText = "Menyimpan...";
 
     try {
         const response = await fetch(GAS_API_URL, {
@@ -818,6 +860,10 @@ async function handleSaveSettings(e) {
         }
     } catch (err) {
         showToast("Error", "Gagal menyimpan pengaturan instansi.", "error");
+    } finally {
+        if (btn) btn.disabled = false;
+        if (spinner) spinner.classList.add('hidden');
+        if (btnText) btnText.innerText = "Simpan Pengaturan Instansi";
     }
 }
 
@@ -933,11 +979,19 @@ function renderAdminUsers() {
 // Save Category Admin
 async function handleSaveCategory(e) {
     e.preventDefault();
+    const btn = document.getElementById('catBtn');
+    const spinner = document.getElementById('catSpinner');
+    const btnText = document.getElementById('catBtnText');
+
     const kode = document.getElementById('catKode').value.trim();
     const nama = document.getElementById('catNama').value.trim();
     const pattern = document.getElementById('catPattern').value.trim();
     const butuhKlasifikasi = document.getElementById('catKlasifikasiCheck').checked;
     const nomorTerakhir = parseInt(document.getElementById('catNomorTerakhir').value) || 0;
+
+    if (btn) btn.disabled = true;
+    if (spinner) spinner.classList.remove('hidden');
+    if (btnText) btnText.innerText = "Menyimpan...";
 
     try {
         const response = await fetch(GAS_API_URL, {
@@ -959,18 +1013,30 @@ async function handleSaveCategory(e) {
         }
     } catch (err) {
         showToast("Error", "Gagal menyimpan kategori.", "error");
+    } finally {
+        if (btn) btn.disabled = false;
+        if (spinner) spinner.classList.add('hidden');
+        if (btnText) btnText.innerText = "Simpan Kategori";
     }
 }
 
 // Save User Admin
 async function handleSaveUser(e) {
     e.preventDefault();
+    const btn = document.getElementById('userBtn');
+    const spinner = document.getElementById('userSpinner');
+    const btnText = document.getElementById('userBtnText');
+
     const nrp = document.getElementById('userNrpInput').value.trim();
     const password = document.getElementById('userPassInput').value.trim();
     const nama = document.getElementById('userNamaInput').value.trim();
     const pangkat = document.getElementById('userPangkatInput').value.trim();
     const jabatan = document.getElementById('userJabatanInput').value.trim();
     const role = document.getElementById('userRoleSelect').value;
+
+    if (btn) btn.disabled = true;
+    if (spinner) spinner.classList.remove('hidden');
+    if (btnText) btnText.innerText = "Menyimpan...";
 
     try {
         const response = await fetch(GAS_API_URL, {
@@ -992,6 +1058,10 @@ async function handleSaveUser(e) {
         }
     } catch (err) {
         showToast("Error", "Gagal menyimpan user.", "error");
+    } finally {
+        if (btn) btn.disabled = false;
+        if (spinner) spinner.classList.add('hidden');
+        if (btnText) btnText.innerText = "Simpan Personil";
     }
 }
 

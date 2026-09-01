@@ -279,7 +279,10 @@
                 </div>
 
                 <div class="flex gap-2 pt-2">
-                    <button type="submit" class="flex-1 bg-amber-500 hover:bg-amber-600 text-blue-950 font-bold py-2 rounded shadow transition">Simpan Perubahan</button>
+                    <button type="submit" id="editSuratBtn" class="flex-1 bg-amber-500 hover:bg-amber-600 text-blue-950 font-bold py-2 rounded shadow transition flex items-center justify-center gap-2">
+                        <span id="editSuratBtnText">Simpan Perubahan</span>
+                        <i id="editSuratSpinner" class="fa-solid fa-circle-notch fa-spin hidden"></i>
+                    </button>
                     <button type="button" onclick="closeEditSuratModal()" class="px-4 bg-slate-200 hover:bg-slate-300 font-semibold py-2 rounded transition">Batal</button>
                 </div>
             </form>
@@ -378,7 +381,10 @@
                                 </label>
                             </div>
                         </div>
-                        <button type="submit" class="w-full bg-blue-800 text-white font-bold py-2 rounded hover:bg-blue-900 transition">Simpan Kategori</button>
+                        <button type="submit" id="catBtn" class="w-full bg-blue-800 hover:bg-blue-900 text-white font-bold py-2 rounded transition flex justify-center items-center gap-2">
+                            <span id="catBtnText">Simpan Kategori</span>
+                            <i id="catSpinner" class="fa-solid fa-circle-notch fa-spin hidden"></i>
+                        </button>
                     </form>
 
                     <h4 class="font-bold text-slate-800 mb-2">Daftar Pattern Kategori Aktif:</h4>
@@ -427,7 +433,10 @@
                                 </select>
                             </div>
                         </div>
-                        <button type="submit" class="w-full bg-blue-800 text-white font-bold py-2 rounded hover:bg-blue-900 transition">Simpan Personil</button>
+                        <button type="submit" id="userBtn" class="w-full bg-blue-800 hover:bg-blue-900 text-white font-bold py-2 rounded transition flex justify-center items-center gap-2">
+                            <span id="userBtnText">Simpan Personil</span>
+                            <i id="userSpinner" class="fa-solid fa-circle-notch fa-spin hidden"></i>
+                        </button>
                     </form>
 
                     <h4 class="font-bold text-slate-800 mb-2">Daftar Personil Registered:</h4>
@@ -457,7 +466,10 @@
                             <input type="text" id="settingSubHeader" required class="w-full p-2 border rounded bg-white" placeholder="ex: Sistem Penomoran Surat Otomatis">
                         </div>
 
-                        <button type="submit" class="w-full bg-amber-500 text-blue-950 font-bold py-2 rounded hover:bg-amber-600 transition shadow">Simpan Pengaturan Instansi</button>
+                        <button type="submit" id="settingBtn" class="w-full bg-amber-500 hover:bg-amber-600 text-blue-950 font-bold py-2 rounded transition shadow flex justify-center items-center gap-2">
+                            <span id="settingBtnText">Simpan Pengaturan Instansi</span>
+                            <i id="settingSpinner" class="fa-solid fa-circle-notch fa-spin hidden"></i>
+                        </button>
                     </form>
                 </div>
             </div>
