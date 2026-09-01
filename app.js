@@ -590,7 +590,7 @@ function renderHistoryTable(historyList) {
         const numEsc = escapeHtml(item.nomorLengkap || '');
         const uraianEsc = escapeHtml(item.uraian || '');
         const pembuatEsc = escapeHtml(item.pembuat || '');
-        const waktuEsc = escapeHtml(item.tanggalSurat || item.timestamp || '');
+        const waktuEsc = escapeHtml(formatDateClean(item.tanggalSurat || item.timestamp));
         const rowIdx = item.rowIndex || i;
 
         html += `
@@ -658,7 +658,7 @@ function openEditSuratModal(item) {
     document.getElementById('editUraian').value = item.uraian || '';
     document.getElementById('editKeperluan').value = item.keperluan || '';
     document.getElementById('editPembuat').value = item.pembuat || '';
-    document.getElementById('editTanggalSurat').value = item.tanggalSurat || '';
+    document.getElementById('editTanggalSurat').value = formatDateClean(item.tanggalSurat || item.timestamp);
 
     const editStatus = document.getElementById('editStatusSurat');
     if (editStatus) editStatus.value = item.status || 'Aktif';
@@ -848,7 +848,8 @@ function shareResultWhatsApp() {
     if (!resultNo || resultNo === '---') return;
 
     const instansi = masterSettings.namaKesatuan || "POLSEK POLEN";
-    const text = `*${instansi.toUpperCase()}*\n*NOMOR SURAT RESMI*\n----------------------------------------\n*Nomor Surat:* ${resultNo}\n*Uraian/Perihal:* ${lastGeneratedData.uraian || '-'}\n*Keperluan/Tujuan:* ${lastGeneratedData.keperluan || '-'}\n*Pembuat:* ${lastGeneratedData.pembuat || '-'}\n*Tanggal:* ${lastGeneratedData.tanggalSurat || '-'}\n----------------------------------------\n_Sistem Penomoran Surat Otomatis_`;
+    const cleanDateVal = formatDateClean(lastGeneratedData.tanggalSurat || new Date());
+    const text = `*${instansi.toUpperCase()}*\n*NOMOR SURAT RESMI*\n----------------------------------------\n*Nomor Surat:* ${resultNo}\n*Uraian/Perihal:* ${lastGeneratedData.uraian || '-'}\n*Keperluan/Tujuan:* ${lastGeneratedData.keperluan || '-'}\n*Pembuat:* ${lastGeneratedData.pembuat || '-'}\n*Tanggal:* ${cleanDateVal}\n----------------------------------------\n_Sistem Penomoran Surat Otomatis_`;
 
     const waUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`;
     window.open(waUrl, '_blank');
