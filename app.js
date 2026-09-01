@@ -1562,21 +1562,27 @@ function formatDateClean(dateInput) {
     return str;
 }
 
-// Generate Official Kop Header String (Format Rata Kiri Standar Polri)
+/// Generate Official Kop Header String (Kop Blok Kiri Atas dengan Teks Center di Dalam Blok)
 function getOfficialKopHTML(filterCategoryTitle) {
     const instansi = masterSettings.namaKesatuan || "POLSEK POLEN";
+    const formattedToday = new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' });
     
     return `
-        <div style="text-align: left; margin-bottom: 20px; font-family: Arial, sans-serif;">
-            <div style="font-size: 11px; font-weight: bold; text-transform: uppercase; line-height: 1.2;">KEPOLISIAN NEGARA REPUBLIK INDONESIA</div>
-            <div style="font-size: 11px; font-weight: bold; text-transform: uppercase; line-height: 1.2;">DAERAH NUSA TENGGARA TIMUR</div>
-            <div style="font-size: 11px; font-weight: bold; text-transform: uppercase; line-height: 1.2;">RESOR TIMOR TENGAH SELATAN</div>
-            <div style="font-size: 12px; font-weight: bold; text-transform: uppercase; line-height: 1.2; color: #1e3a8a;">${escapeHtml(instansi)}</div>
-            <div style="border-bottom: 2px solid #000; width: 260px; margin-top: 4px; margin-bottom: 15px;"></div>
+        <div style="margin-bottom: 20px; font-family: Arial, sans-serif;">
+            <!-- Kop Block di Kiri Atas dengan Teks Center di Dalam Blok -->
+            <div style="display: inline-block; text-align: center; min-width: 320px; max-width: 380px;">
+                <div style="font-size: 11px; font-weight: bold; text-transform: uppercase; line-height: 1.3;">KEPOLISIAN NEGARA REPUBLIK INDONESIA</div>
+                <div style="font-size: 11px; font-weight: bold; text-transform: uppercase; line-height: 1.3;">DAERAH NUSA TENGGARA TIMUR</div>
+                <div style="font-size: 11px; font-weight: bold; text-transform: uppercase; line-height: 1.3;">RESOR TIMOR TENGAH SELATAN</div>
+                <div style="font-size: 12px; font-weight: bold; text-transform: uppercase; line-height: 1.3; color: #1e3a8a;">${escapeHtml(instansi)}</div>
+                <div style="border-bottom: 2px solid #000; margin-top: 4px; width: 100%;"></div>
+            </div>
         </div>
+
+        <!-- Judul Laporan Center di Tengah Halaman -->
         <div style="text-align: center; margin-bottom: 15px; font-family: Arial, sans-serif;">
             <h3 style="margin:0; padding:0; text-transform:uppercase; font-size:14px; font-weight:bold;">LAPORAN REKAPITULASI PENOMORAN SURAT</h3>
-            <p style="margin:3px 0 0 0; font-size:11px; color:#475569;">Kategori: <b>${escapeHtml(filterCategoryTitle)}</b> | Tanggal Cetak: <b>${new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' })}</b></p>
+            <p style="margin:3px 0 0 0; font-size:11px; color:#475569;">Kategori: <b>${escapeHtml(filterCategoryTitle)}</b> | Tanggal Cetak: <b>${formattedToday}</b></p>
         </div>
     `;
 }
@@ -1652,10 +1658,10 @@ function executeExportExcel() {
                 </tbody>
             </table>
             <br><br>
-            <table style="border:none; margin-top:20px;">
+            <table style="border:none; margin-top:20px; width:100%;">
                 <tr style="border:none;">
-                    <td style="border:none; width:60%;"></td>
-                    <td style="border:none; text-align:center;">
+                    <td colspan="4" style="border:none;"></td>
+                    <td colspan="2" style="border:none; text-align:center; vertical-align:top; font-family:Arial, sans-serif; font-size:11px;">
                         ${escapeHtml(masterSettings.namaKesatuan || 'POLSEK POLEN')}, ${new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' })}<br>
                         <b>KAPOLSEK</b><br><br><br><br>
                         <u><b>________________________</b></u>
@@ -1679,7 +1685,7 @@ function executeExportExcel() {
 
     showToast("Export Berhasil", "Laporan Excel berhasil diunduh.", "success");
     closeExportModal();
-};
+}
 
 // Execute Print Laporan (A4 Printable View with Kop)
 function executePrintReport() {
@@ -1721,11 +1727,12 @@ function executePrintReport() {
             <style>
                 @page { size: A4 portrait; margin: 15mm; }
                 body { font-family: 'Times New Roman', Times, serif; font-size: 11pt; color: #000; margin: 0; padding: 0; }
-                .kop-container { text-align: left; margin-bottom: 15px; }
-                .kop-instansi { font-size: 10pt; font-weight: bold; text-transform: uppercase; margin: 0; line-height: 1.2; }
-                .kop-title { font-size: 10pt; font-weight: bold; text-transform: uppercase; margin: 0; line-height: 1.2; }
-                .kop-sub { font-size: 11pt; font-weight: bold; text-transform: uppercase; margin: 0; line-height: 1.2; color: #1e3a8a; }
-                .kop-line { border-bottom: 2px solid #000; width: 260px; margin-top: 4px; margin-bottom: 15px; }
+                .kop-wrapper { text-align: left; margin-bottom: 15px; }
+                .kop-block { display: inline-block; text-align: center; min-width: 320px; }
+                .kop-instansi { font-size: 10pt; font-weight: bold; text-transform: uppercase; margin: 0; line-height: 1.3; }
+                .kop-title { font-size: 10pt; font-weight: bold; text-transform: uppercase; margin: 0; line-height: 1.3; }
+                .kop-sub { font-size: 11pt; font-weight: bold; text-transform: uppercase; margin: 0; line-height: 1.3; color: #1e3a8a; }
+                .kop-line { border-bottom: 2px solid #000; width: 100%; margin-top: 4px; margin-bottom: 15px; }
                 .report-title { text-align: center; font-size: 12pt; font-weight: bold; text-transform: uppercase; margin-bottom: 2px; }
                 .report-sub { text-align: center; font-size: 10pt; margin-bottom: 15px; }
                 table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 10pt; }
@@ -1744,12 +1751,14 @@ function executePrintReport() {
                 <button onclick="window.print()" style="background:#f59e0b; color:#000; font-weight:bold; border:none; padding:8px 16px; border-radius:5px; cursor:pointer;">Cetak Sekarang (Print / PDF)</button>
             </div>
 
-            <div class="kop-container">
-                <div class="kop-instansi">KEPOLISIAN NEGARA REPUBLIK INDONESIA</div>
-                <div class="kop-instansi">DAERAH NUSA TENGGARA TIMUR</div>
-                <div class="kop-title">RESOR TIMOR TENGAH SELATAN</div>
-                <div class="kop-sub">${escapeHtml(masterSettings.namaKesatuan || 'POLSEK POLEN')}</div>
-                <div class="kop-line"></div>
+            <div class="kop-wrapper">
+                <div class="kop-block">
+                    <div class="kop-instansi">KEPOLISIAN NEGARA REPUBLIK INDONESIA</div>
+                    <div class="kop-instansi">DAERAH NUSA TENGGARA TIMUR</div>
+                    <div class="kop-title">RESOR TIMOR TENGAH SELATAN</div>
+                    <div class="kop-sub">${escapeHtml(masterSettings.namaKesatuan || 'POLSEK POLEN')}</div>
+                    <div class="kop-line"></div>
+                </div>
             </div>
 
             <div class="report-title">LAPORAN REKAPITULASI PENOMORAN SURAT</div>
