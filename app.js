@@ -206,6 +206,8 @@ async function fetchData() {
             renderKlasifikasi(masterKlasifikasi);
             renderPembuatDropdown(masterUsers);
             renderHistoryTable(masterHistory);
+            updateAutocompleteDatalists();
+            populateExistingCategorySelect();
             updateLivePreview();
         } else {
             showToast("Error Load Data", result.message, "error");
@@ -424,11 +426,14 @@ window.insertVariableTag = function(tag) {
     const input = document.getElementById('catPattern');
     if (!input) return;
 
-    const currentVal = input.value.trim();
-    if (currentVal.length > 0 && !currentVal.endsWith(' ') && !currentVal.endsWith('/')) {
-        input.value = currentVal + ' / ' + tag;
+    let currentVal = input.value.trim();
+    if (currentVal.length === 0) {
+        input.value = tag;
     } else {
-        input.value = currentVal + (currentVal.length > 0 ? ' ' : '') + tag;
+        if (currentVal.endsWith('/')) {
+            currentVal = currentVal.substring(0, currentVal.length - 1).trim();
+        }
+        input.value = currentVal + ' / ' + tag;
     }
     input.focus();
 };
@@ -676,23 +681,87 @@ async function handleDeleteSurat(item) {
     }
 }
 
-// Live Filter/Search Riwayat Surat
-function filterHistory() {
-    const query = document.getElementById('searchInput').value.toLowerCase().trim();
-    if (!query) {
-        renderHistoryTable(masterHistory);
-        return;
-    }
+// Autocomplete Datalist Generator dari Data Riwayat
+function updateAutocompleteDatalists() {
+    const uraianDl = document.getElementById('uraianDatalist');
+    const keperluanDl = document.getElementById('keperluanDatalist');
+    if (!uraianDl && !keperluanDl) return;
 
-    const filtered = masterHistory.filter(item => {
-        return (item.nomorLengkap && item.nomorLengkap.toLowerCase().includes(query)) ||
-               (item.uraian && item.uraian.toLowerCase().includes(query)) ||
-               (item.pembuat && item.pembuat.toLowerCase().includes(query)) ||
-               (item.keperluan && item.keperluan.toLowerCase().includes(query));
+    const uniqueUraian = new Set();
+    const uniqueKeperluan = new Set();
+
+    masterHistory.forEach(item => {
+        if (item.uraian && item.uraian.trim()) uniqueUraian.add(item.uraian.trim());
+        if (item.keperluan && item.keperluan.trim()) uniqueKeperluan.add(item.keperluan.trim());
     });
 
-    renderHistoryTable(filtered);
+    if (uraianDl) {
+        uraianDl.innerHTML = Array.from(uniqueUraian)
+            .map(val => `<option value="${escapeHtml(val)}"></option>`)
+            .join('');
+    }
+
+    if (keperluanDl) {
+        keperluanDl.innerHTML = Array.from(uniqueKeperluan)
+            .map(val => `<option value="${escapeHtml(val)}"></option>`)
+            .join('');
+    }
 }
+
+// Live Filter & Sort Riwayat Surat (Terbaru, Terlama, A-Z, Z-A)
+function filterHistory() {
+    const searchEl = document.getElementById('searchInput');
+    const sortEl = document.getElementById('sortSelect');
+    
+    const query = searchEl ? searchEl.value.toLowerCase().trim() : '';
+    const sortVal = sortEl ? sortEl.value : 'terbaru';
+
+    let result = [...masterHistory];
+
+    if (query) {
+        result = result.filter(item => {
+            return (item.nomorLengkap && item.nomorLengkap.toLowerCase().includes(query)) ||
+                   (item.uraian && item.uraian.toLowerCase().includes(query)) ||
+                   (item.pembuat && item.pembuat.toLowerCase().includes(query)) ||
+                   (item.keperluan && item.keperluan.toLowerCase().includes(query));
+        });
+    }
+
+    // Urutkan Data berdasarkan Pilihan
+    result.sort((a, b) => {
+        if (sortVal === 'terbaru') {
+            return (b.rowIndex || 0) - (a.rowIndex || 0);
+        } else if (sortVal === 'terlama') {
+            return (a.rowIndex || 0) - (b.rowIndex || 0);
+        } else if (sortVal === 'az') {
+            return String(a.nomorLengkap || '').localeCompare(String(b.nomorLengkap || ''));
+        } else if (sortVal === 'za') {
+            return String(b.nomorLengkap || '').localeCompare(String(a.nomorLengkap || ''));
+        } else if (sortVal === 'uraian_az') {
+            return String(a.uraian || '').localeCompare(String(b.uraian || ''));
+        } else if (sortVal === 'uraian_za') {
+            return String(b.uraian || '').localeCompare(String(a.uraian || ''));
+        }
+        return 0;
+    });
+
+    renderHistoryTable(result);
+}
+
+// Toggle Sort dari Klik Header Tabel
+window.toggleSortColumn = function(colName) {
+    const sortEl = document.getElementById('sortSelect');
+    if (!sortEl) return;
+
+    if (colName === 'nomor') {
+        sortEl.value = (sortEl.value === 'az') ? 'za' : 'az';
+    } else if (colName === 'uraian') {
+        sortEl.value = (sortEl.value === 'uraian_az') ? 'uraian_za' : 'uraian_az';
+    } else if (colName === 'tanggal') {
+        sortEl.value = (sortEl.value === 'terbaru') ? 'terlama' : 'terbaru';
+    }
+    filterHistory();
+};
 
 // Modal Result Generator & Copy Button
 function showResultModal(nomorSurat) {
@@ -861,16 +930,69 @@ async function handleSaveSettings(e) {
     }
 }
 
+// Populate Dropdown Pilih Kategori Eksis di Panel Admin
+function populateExistingCategorySelect() {
+    const select = document.getElementById('existingCatSelect');
+    if (!select) return;
+
+    const currentVal = select.value;
+    select.innerHTML = '<option value="NEW">+ -- Tambah Kategori Baru --</option>';
+
+    masterCategories.forEach(cat => {
+        const opt = document.createElement('option');
+        opt.value = cat.kode;
+        opt.text = `[EKSIS] ${cat.kode} - ${cat.nama || cat.kode}`;
+        select.appendChild(opt);
+    });
+
+    if (currentVal && Array.from(select.options).some(o => o.value === currentVal)) {
+        select.value = currentVal;
+    }
+}
+
+// Handler saat Kategori Eksis dipilih dari Dropdown Admin
+window.handleSelectExistingCategory = function(kode) {
+    const kodeInput = document.getElementById('catKode');
+    const btnText = document.getElementById('catBtnText');
+
+    if (kode === "NEW") {
+        if (kodeInput) {
+            kodeInput.value = '';
+            kodeInput.readOnly = false;
+            kodeInput.classList.remove('bg-gray-100');
+        }
+        document.getElementById('catNama').value = '';
+        document.getElementById('catPattern').value = '{JENIS}/ {NO} / {BULAN_ROMAWI} / {TAHUN}';
+        document.getElementById('catKlasifikasiCheck').checked = false;
+        document.getElementById('catNomorTerakhir').value = 0;
+        if (btnText) btnText.innerText = "Simpan Kategori Baru";
+    } else {
+        window.editCategoryInForm(kode);
+    }
+};
+
 // Click to Edit Category in Form Above
 window.editCategoryInForm = function(kode) {
     const cat = masterCategories.find(c => String(c.kode).trim() === String(kode).trim());
     if (!cat) return;
 
-    document.getElementById('catKode').value = cat.kode || '';
+    const existingSel = document.getElementById('existingCatSelect');
+    if (existingSel) existingSel.value = cat.kode || 'NEW';
+
+    const kodeInput = document.getElementById('catKode');
+    if (kodeInput) {
+        kodeInput.value = cat.kode || '';
+        kodeInput.readOnly = true;
+        kodeInput.classList.add('bg-gray-100');
+    }
+
     document.getElementById('catNama').value = cat.nama || '';
     document.getElementById('catPattern').value = (cat.pattern && cat.pattern !== "undefined") ? cat.pattern : "{JENIS}/ {NO} / {BULAN_ROMAWI} / {TAHUN}";
     document.getElementById('catKlasifikasiCheck').checked = cat.butuhKlasifikasi || false;
     document.getElementById('catNomorTerakhir').value = cat.nomorTerakhir || 0;
+
+    const btnText = document.getElementById('catBtnText');
+    if (btnText) btnText.innerText = `Update Kategori (${cat.kode})`;
 
     const catForm = document.getElementById('catForm');
     if (catForm) {
@@ -977,11 +1099,27 @@ async function handleSaveCategory(e) {
     const spinner = document.getElementById('catSpinner');
     const btnText = document.getElementById('catBtnText');
 
-    const kode = document.getElementById('catKode').value.trim();
+    const kodeInput = document.getElementById('catKode');
+    const isEditMode = kodeInput ? kodeInput.readOnly : false;
+    const kode = kodeInput ? kodeInput.value.trim() : '';
     const nama = document.getElementById('catNama').value.trim();
     const pattern = document.getElementById('catPattern').value.trim();
     const butuhKlasifikasi = document.getElementById('catKlasifikasiCheck').checked;
     const nomorTerakhir = parseInt(document.getElementById('catNomorTerakhir').value) || 0;
+
+    if (!kode || !nama) {
+        showToast("Form Tidak Lengkap", "Harap isi Kode Surat dan Nama Kategori!", "error");
+        return;
+    }
+
+    // Guard Anti-Duplikat (Mencegah pembuatan kode baru yang sudah pernah ada)
+    if (!isEditMode) {
+        const duplicate = masterCategories.find(c => String(c.kode).trim().toLowerCase() === kode.toLowerCase());
+        if (duplicate) {
+            showToast("Guard Anti Duplikat", `Kode Surat "${kode}" sudah pernah dibuat! Gunakan dropdown "Pilih Kategori Eksis" di atas untuk mengeditnya.`, "error");
+            return;
+        }
+    }
 
     if (btn) btn.disabled = true;
     if (spinner) spinner.classList.remove('hidden');
@@ -1001,6 +1139,12 @@ async function handleSaveCategory(e) {
         if (result.status === 'success') {
             showToast("Berhasil", result.message, "success");
             document.getElementById('catForm').reset();
+            if (kodeInput) {
+                kodeInput.readOnly = false;
+                kodeInput.classList.remove('bg-gray-100');
+            }
+            const existingSel = document.getElementById('existingCatSelect');
+            if (existingSel) existingSel.value = "NEW";
             fetchData();
         } else {
             showToast("Gagal", result.message, "error");
@@ -1010,7 +1154,7 @@ async function handleSaveCategory(e) {
     } finally {
         if (btn) btn.disabled = false;
         if (spinner) spinner.classList.add('hidden');
-        if (btnText) btnText.innerText = "Simpan Kategori";
+        if (btnText) btnText.innerText = isEditMode ? `Update Kategori (${kode})` : "Simpan Kategori Baru";
     }
 }
 
