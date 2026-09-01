@@ -1028,6 +1028,21 @@ async function deleteUser(nrp) {
     }
 }
 
+// Toggle Visibility Password Input dengan Icon Google Material Symbols Standard
+function togglePasswordVisibility(inputId, btnEl) {
+    const input = document.getElementById(inputId);
+    if (!input) return;
+    const icon = btnEl ? btnEl.querySelector('.material-symbols-outlined') : null;
+    if (input.type === 'password') {
+        input.type = 'text';
+        if (icon) icon.textContent = 'visibility_off';
+    } else {
+        input.type = 'password';
+        if (icon) icon.textContent = 'visibility';
+    }
+}
+
+window.togglePasswordVisibility = togglePasswordVisibility;
 window.deleteCategory = deleteCategory;
 window.deleteUser = deleteUser;
 window.handleLogout = handleLogout;
