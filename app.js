@@ -301,17 +301,17 @@ function renderPembuatDropdown(usersList) {
     autoSelectPembuat();
 }
 
-// Auto-fill Pembuat Surat dari Current Logged-in User
+// Auto-fill & Kunci Pembuat Surat dari Current Logged-in User
 function autoSelectPembuat() {
     if (!currentUser) return;
     const select = document.getElementById('pembuatSelect');
     if (!select) return;
 
-    const targetNrp = currentUser.nrp;
+    const myName = `${currentUser.pangkat} ${currentUser.nama} (${currentUser.nrp})`;
     let found = false;
 
     for (let opt of select.options) {
-        if (opt.dataset && opt.dataset.nrp === targetNrp) {
+        if (opt.dataset && opt.dataset.nrp === currentUser.nrp) {
             select.value = opt.value;
             found = true;
             break;
@@ -319,7 +319,6 @@ function autoSelectPembuat() {
     }
 
     if (!found && currentUser.nama) {
-        const myName = `${currentUser.pangkat} ${currentUser.nama} (${currentUser.nrp})`;
         const opt = document.createElement('option');
         opt.value = myName;
         opt.text = myName;
@@ -327,6 +326,10 @@ function autoSelectPembuat() {
         select.appendChild(opt);
         select.value = myName;
     }
+
+    // KUNCI DROPDOWN PEMBUAT AGAR TIDAK BISA DIEDIT KARENA MEMBACA LOGGED IN USER
+    select.disabled = true;
+    select.classList.add('bg-slate-200', 'cursor-not-allowed', 'text-slate-700', 'font-semibold');
 }
 
 // Live Preview Penomoran Surat
@@ -1374,6 +1377,319 @@ window.fetchData = fetchData;
 window.copyResultNumber = copyResultNumber;
 window.closeResultModal = closeResultModal;
 window.copyToClipboard = copyToClipboard;
+
+// Open Export Modal & Populate Category Options
+window.openExportModal = function() {
+    const modal = document.getElementById('exportModal');
+    const select = document.getElementById('exportKodeSelect');
+    if (!modal) return;
+
+    if (select) {
+        select.innerHTML = '<option value="ALL">-- SEMUA KATEGORI / KODE SURAT --</option>';
+        masterCategories.forEach(cat => {
+            const opt = document.createElement('option');
+            opt.value = cat.kode;
+            opt.text = `${cat.kode} - ${cat.nama || cat.kode}`;
+            select.appendChild(opt);
+        });
+    }
+
+    modal.classList.remove('hidden');
+};
+
+window.closeExportModal = function() {
+    const modal = document.getElementById('exportModal');
+    if (modal) modal.classList.add('hidden');
+};
+
+// Helper: Filter history dataset based on export modal fields
+function getFilteredExportData() {
+    const kodeSelect = document.getElementById('exportKodeSelect');
+    const dateStart = document.getElementById('exportDateStart');
+    const dateEnd = document.getElementById('exportDateEnd');
+    const queryEl = document.getElementById('exportQuery');
+
+    const kodeVal = kodeSelect ? kodeSelect.value : 'ALL';
+    const startVal = dateStart ? dateStart.value : '';
+    const endVal = dateEnd ? dateEnd.value : '';
+    const qVal = queryEl ? queryEl.value.toLowerCase().trim() : '';
+
+    return masterHistory.filter(item => {
+        // Filter Kode Kategori
+        if (kodeVal !== 'ALL') {
+            const num = (item.nomorLengkap || '').toLowerCase();
+            const targetKode = kodeVal.toLowerCase();
+            const itemKode = (item.kodeSurat || '').toLowerCase();
+            if (itemKode !== targetKode && !num.includes(targetKode)) {
+                return false;
+            }
+        }
+
+        // Filter Rentang Tanggal (YYYY-MM-DD)
+        if (startVal || endVal) {
+            let itemDateStr = item.tanggalSurat || item.timestamp;
+            if (itemDateStr) {
+                let parsedDate = null;
+                if (itemDateStr.includes('/')) {
+                    const parts = itemDateStr.split('/');
+                    if (parts.length === 3) {
+                        parsedDate = new Date(`${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`);
+                    }
+                } else {
+                    parsedDate = new Date(itemDateStr);
+                }
+
+                if (parsedDate && !isNaN(parsedDate.getTime())) {
+                    if (startVal && parsedDate < new Date(startVal)) return false;
+                    if (endVal && parsedDate > new Date(endVal + 'T23:59:59')) return false;
+                }
+            }
+        }
+
+        // Filter Kata Kunci
+        if (qVal) {
+            const matchesText = 
+                (item.nomorLengkap && item.nomorLengkap.toLowerCase().includes(qVal)) ||
+                (item.uraian && item.uraian.toLowerCase().includes(qVal)) ||
+                (item.pembuat && item.pembuat.toLowerCase().includes(qVal)) ||
+                (item.keperluan && item.keperluan.toLowerCase().includes(qVal));
+            if (!matchesText) return false;
+        }
+
+        return true;
+    });
+}
+
+// Generate Official Kop Header String
+function getOfficialKopHTML(filterCategoryTitle) {
+    const instansi = masterSettings.namaKesatuan || "POLSEK POLEN";
+    
+    return `
+        <div style="text-align: center; margin-bottom: 20px; font-family: Arial, sans-serif;">
+            <h4 style="margin:0; padding:0; text-transform:uppercase; font-size:12px; font-weight:bold; letter-spacing:1px;">KEPOLISIAN NEGARA REPUBLIK INDONESIA</h4>
+            <h4 style="margin:0; padding:0; text-transform:uppercase; font-size:12px; font-weight:bold; letter-spacing:1px;">DAERAH NUSA TENGGARA TIMUR</h4>
+            <h3 style="margin:2px 0 0 0; padding:0; text-transform:uppercase; font-size:14px; font-weight:bold; letter-spacing:1px;">RESOR TIMOR TENGAH SELATAN</h3>
+            <h2 style="margin:2px 0 6px 0; padding:0; text-transform:uppercase; font-size:16px; font-weight:800; color:#1e3a8a; letter-spacing:1px;">${escapeHtml(instansi)}</h2>
+            <div style="border-bottom: 3px double #000; margin-bottom: 15px;"></div>
+            <h3 style="margin:5px 0 2px 0; text-transform:uppercase; font-size:14px; font-weight:bold;">LAPORAN REKAPITULASI PENOMORAN SURAT</h3>
+            <p style="margin:0; font-size:11px; color:#475569;">Kategori / Filter: <b>${escapeHtml(filterCategoryTitle)}</b> | Tanggal Cetak: <b>${new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' })}</b></p>
+        </div>
+    `;
+}
+
+// Execute Export Ke Excel (.xls)
+window.executeExportExcel = function() {
+    const filteredData = getFilteredExportData();
+    if (filteredData.length === 0) {
+        showToast("Data Kosong", "Tidak ada data surat yang sesuai dengan filter pilihan Anda.", "error");
+        return;
+    }
+
+    const kodeSelect = document.getElementById('exportKodeSelect');
+    const catLabel = kodeSelect ? kodeSelect.options[kodeSelect.selectedIndex].text : 'SEMUA KATEGORI';
+
+    let tableHTML = `
+        <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+        <head>
+            <meta charset="utf-8">
+            <!--[if gte mso 9]>
+            <xml>
+                <x:ExcelWorkbook>
+                    <x:ExcelWorksheets>
+                        <x:ExcelWorksheet>
+                            <x:Name>Laporan Surat</x:Name>
+                            <x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions>
+                        </x:ExcelWorksheet>
+                    </x:ExcelWorksheets>
+                </x:ExcelWorkbook>
+            </xml>
+            <![endif]-->
+            <style>
+                body { font-family: Arial, sans-serif; font-size: 11px; }
+                table { border-collapse: collapse; width: 100%; margin-top: 10px; }
+                th { background-color: #1e3a8a; color: #ffffff; font-weight: bold; border: 1px solid #000000; padding: 8px; text-align: center; }
+                td { border: 1px solid #000000; padding: 6px 8px; vertical-align: top; }
+                .text-center { text-align: center; }
+                .text-bold { font-weight: bold; }
+                tr:nth-child(even) { background-color: #f8fafc; }
+            </style>
+        </head>
+        <body>
+            ${getOfficialKopHTML(catLabel)}
+            <table>
+                <thead>
+                    <tr>
+                        <th style="width: 40px;">NO</th>
+                        <th>NOMOR SURAT LENGKAP</th>
+                        <th>URAIAN PERIHAL / TENTANG</th>
+                        <th>KEPERLUAN / TUJUAN</th>
+                        <th>PEMBUAT SURAT</th>
+                        <th>TANGGAL SURAT</th>
+                    </tr>
+                </thead>
+                <tbody>
+    `;
+
+    filteredData.forEach((item, index) => {
+        tableHTML += `
+            <tr>
+                <td class="text-center">${index + 1}</td>
+                <td class="text-bold">${escapeHtml(item.nomorLengkap || '')}</td>
+                <td>${escapeHtml(item.uraian || '')}</td>
+                <td>${escapeHtml(item.keperluan || '')}</td>
+                <td>${escapeHtml(item.pembuat || '')}</td>
+                <td class="text-center">${escapeHtml(item.tanggalSurat || item.timestamp || '')}</td>
+            </tr>
+        `;
+    });
+
+    tableHTML += `
+                </tbody>
+            </table>
+            <br><br>
+            <table style="border:none; margin-top:20px;">
+                <tr style="border:none;">
+                    <td style="border:none; width:60%;"></td>
+                    <td style="border:none; text-align:center;">
+                        ${escapeHtml(masterSettings.namaKesatuan || 'POLSEK POLEN')}, ${new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' })}<br>
+                        <b>KAPOLSEK / ANOTA</b><br><br><br><br>
+                        <u><b>________________________</b></u>
+                    </td>
+                </tr>
+            </table>
+        </body>
+        </html>
+    `;
+
+    const blob = new Blob([tableHTML], { type: 'application/vnd.ms-excel;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const filenameKode = (kodeSelect ? kodeSelect.value : 'ALL').replace(/[^a-zA-Z0-9]/g, '_');
+    a.href = url;
+    a.download = `Laporan_Surat_${filenameKode}_${new Date().toISOString().slice(0, 10)}.xls`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    showToast("Export Berhasil", "Laporan Excel berhasil diunduh.", "success");
+    closeExportModal();
+};
+
+// Execute Print Laporan (A4 Printable View with Kop)
+window.executePrintReport = function() {
+    const filteredData = getFilteredExportData();
+    if (filteredData.length === 0) {
+        showToast("Data Kosong", "Tidak ada data surat yang sesuai dengan filter pilihan Anda.", "error");
+        return;
+    }
+
+    const kodeSelect = document.getElementById('exportKodeSelect');
+    const catLabel = kodeSelect ? kodeSelect.options[kodeSelect.selectedIndex].text : 'SEMUA KATEGORI';
+
+    const printWin = window.open('', '_blank');
+    if (!printWin) {
+        showToast("Popup Ditolak", "Izinkan popup browser untuk membuka halaman cetak.", "error");
+        return;
+    }
+
+    let rowsHTML = '';
+    filteredData.forEach((item, index) => {
+        rowsHTML += `
+            <tr>
+                <td style="text-align: center;">${index + 1}</td>
+                <td style="font-weight: bold;">${escapeHtml(item.nomorLengkap || '')}</td>
+                <td>${escapeHtml(item.uraian || '')}</td>
+                <td>${escapeHtml(item.keperluan || '')}</td>
+                <td>${escapeHtml(item.pembuat || '')}</td>
+                <td style="text-align: center;">${escapeHtml(item.tanggalSurat || item.timestamp || '')}</td>
+            </tr>
+        `;
+    });
+
+    const fullPrintHTML = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Cetak Laporan Penomoran Surat</title>
+            <style>
+                @page { size: A4 portrait; margin: 15mm; }
+                body { font-family: 'Times New Roman', Times, serif; font-size: 11pt; color: #000; margin: 0; padding: 0; }
+                .kop-container { text-align: center; margin-bottom: 15px; }
+                .kop-instansi { font-size: 11pt; font-weight: bold; text-transform: uppercase; margin: 0; }
+                .kop-title { font-size: 13pt; font-weight: bold; text-transform: uppercase; margin: 3px 0 0 0; }
+                .kop-sub { font-size: 15pt; font-weight: bold; text-transform: uppercase; margin: 3px 0 5px 0; }
+                .kop-line { border-bottom: 3px double #000; margin-bottom: 15px; }
+                .report-title { text-align: center; font-size: 12pt; font-weight: bold; text-transform: uppercase; margin-bottom: 2px; }
+                .report-sub { text-align: center; font-size: 10pt; margin-bottom: 15px; }
+                table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 10pt; }
+                th { border: 1px solid #000; padding: 6px; background-color: #e2e8f0; font-weight: bold; text-align: center; text-transform: uppercase; }
+                td { border: 1px solid #000; padding: 6px; vertical-align: top; }
+                .footer-sign { width: 100%; margin-top: 30px; border: none; font-size: 11pt; }
+                .footer-sign td { border: none; }
+                @media print {
+                    .no-print { display: none !important; }
+                }
+            </style>
+        </head>
+        <body>
+            <div class="no-print" style="background:#1e3a8a; color:#fff; padding:10px 20px; display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+                <span><b>Pratinjau Cetak Laporan Penomoran Surat</b></span>
+                <button onclick="window.print()" style="background:#f59e0b; color:#000; font-weight:bold; border:none; padding:8px 16px; border-radius:5px; cursor:pointer;">Cetak Sekarang (Print / PDF)</button>
+            </div>
+
+            <div class="kop-container">
+                <div class="kop-instansi">KEPOLISIAN NEGARA REPUBLIK INDONESIA</div>
+                <div class="kop-instansi">DAERAH NUSA TENGGARA TIMUR</div>
+                <div class="kop-title">RESOR TIMOR TENGAH SELATAN</div>
+                <div class="kop-sub">${escapeHtml(masterSettings.namaKesatuan || 'POLSEK POLEN')}</div>
+                <div class="kop-line"></div>
+            </div>
+
+            <div class="report-title">LAPORAN REKAPITULASI PENOMORAN SURAT</div>
+            <div class="report-sub">Kategori: <b>${escapeHtml(catLabel)}</b> | Tanggal: <b>${new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' })}</b></div>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th style="width: 30px;">NO</th>
+                        <th>NOMOR SURAT LENGKAP</th>
+                        <th>URAIAN PERIHAL / TENTANG</th>
+                        <th>KEPERLUAN / TUJUAN</th>
+                        <th>PEMBUAT SURAT</th>
+                        <th>TANGGAL SURAT</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${rowsHTML}
+                </tbody>
+            </table>
+
+            <table class="footer-sign">
+                <tr>
+                    <td style="width: 60%;"></td>
+                    <td style="text-align: center;">
+                        ${escapeHtml(masterSettings.namaKesatuan || 'POLSEK POLEN')}, ${new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' })}<br>
+                        <b>KAPOLSEK / ANOTA</b><br><br><br><br><br>
+                        <u><b>________________________</b></u>
+                    </td>
+                </tr>
+            </table>
+
+            <script>
+                window.onload = function() {
+                    setTimeout(() => window.print(), 500);
+                };
+            </script>
+        </body>
+        </html>
+    `;
+
+    printWin.document.write(fullPrintHTML);
+    printWin.document.close();
+
+    closeExportModal();
+};
 
 // Service Worker Registration for PWA
 if ('serviceWorker' in navigator) {
