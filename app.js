@@ -1426,30 +1426,46 @@ window.fetchData = fetchData;
 window.copyResultNumber = copyResultNumber;
 window.closeResultModal = closeResultModal;
 window.copyToClipboard = copyToClipboard;
+window.openExportModal = openExportModal;
+window.closeExportModal = closeExportModal;
+window.executeExportExcel = executeExportExcel;
+window.executePrintReport = executePrintReport;
 
-// Open Export Modal & Populate Category Options
-window.openExportModal = function() {
+// Open Export Modal & Populate Category Options (Membaca seluruh masterCategories & history)
+function openExportModal() {
     const modal = document.getElementById('exportModal');
     const select = document.getElementById('exportKodeSelect');
     if (!modal) return;
 
     if (select) {
         select.innerHTML = '<option value="ALL">-- SEMUA KATEGORI / KODE SURAT --</option>';
+        
+        const categoryMap = new Map();
         masterCategories.forEach(cat => {
+            if (cat.kode) categoryMap.set(cat.kode, `${cat.kode} - ${cat.nama || cat.kode}`);
+        });
+
+        masterHistory.forEach(h => {
+            if (h.kodeSurat && !categoryMap.has(h.kodeSurat)) {
+                categoryMap.set(h.kodeSurat, `${h.kodeSurat} - Surat ${h.kodeSurat}`);
+            }
+        });
+
+        categoryMap.forEach((label, kode) => {
             const opt = document.createElement('option');
-            opt.value = cat.kode;
-            opt.text = `${cat.kode} - ${cat.nama || cat.kode}`;
+            opt.value = kode;
+            opt.text = label;
             select.appendChild(opt);
         });
     }
 
     modal.classList.remove('hidden');
-};
+}
 
-window.closeExportModal = function() {
+function closeExportModal() {
     const modal = document.getElementById('exportModal');
     if (modal) modal.classList.add('hidden');
-};
+}
 
 // Helper: Filter history dataset based on export modal fields
 function getFilteredExportData() {
@@ -1467,11 +1483,15 @@ function getFilteredExportData() {
         // Filter Kode Kategori
         if (kodeVal !== 'ALL') {
             const num = (item.nomorLengkap || '').toLowerCase();
-            const targetKode = kodeVal.toLowerCase();
             const itemKode = (item.kodeSurat || '').toLowerCase();
-            if (itemKode !== targetKode && !num.includes(targetKode)) {
-                return false;
-            }
+            const targetKode = kodeVal.toLowerCase();
+
+            const isMatchKode = (itemKode === targetKode) || 
+                                num.startsWith(targetKode + '/') || 
+                                num.includes('/' + targetKode + '/') ||
+                                num.includes(targetKode);
+            
+            if (!isMatchKode) return false;
         }
 
         // Filter Rentang Tanggal (YYYY-MM-DD)
@@ -1527,7 +1547,7 @@ function getOfficialKopHTML(filterCategoryTitle) {
 }
 
 // Execute Export Ke Excel (.xls)
-window.executeExportExcel = function() {
+function executeExportExcel() {
     const filteredData = getFilteredExportData();
     if (filteredData.length === 0) {
         showToast("Data Kosong", "Tidak ada data surat yang sesuai dengan filter pilihan Anda.", "error");
@@ -1626,7 +1646,7 @@ window.executeExportExcel = function() {
 };
 
 // Execute Print Laporan (A4 Printable View with Kop)
-window.executePrintReport = function() {
+function executePrintReport() {
     const filteredData = getFilteredExportData();
     if (filteredData.length === 0) {
         showToast("Data Kosong", "Tidak ada data surat yang sesuai dengan filter pilihan Anda.", "error");
