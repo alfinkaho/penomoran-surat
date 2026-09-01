@@ -546,7 +546,7 @@ async function submitSurat(e) {
 
         if (result.status === "success") {
             const finalNum = result.nomorSurat || result.nomor || "Nomor Surat Diterbitkan";
-            showResultModal(finalNum);
+            showResultModal(finalNum, { kodeSurat, tanggalSurat, pembuat, uraian, keperluan });
             document.getElementById('suratForm').reset();
             initDefaultDate();
             autoSelectPembuat();
@@ -596,8 +596,15 @@ function renderHistoryTable(historyList) {
         html += `
             <tr class="hover:bg-blue-50/50 transition-colors border-b border-gray-100 group">
                 <td class="px-4 py-3 font-semibold text-blue-900 whitespace-nowrap flex items-center justify-between">
-                    <span>${numEsc}</span>
-                    <button onclick="copyToClipboard('${numEsc}')" title="Salin Nomor Surat" class="opacity-0 group-hover:opacity-100 text-blue-600 hover:text-blue-800 transition px-2 py-1 bg-blue-100 rounded text-xs">
+                    <div class="flex items-center gap-1.5">
+                        <span>${numEsc}</span>
+                        <span class="text-[10px] px-1.5 py-0.5 rounded font-bold uppercase ${
+                            item.status === 'Dibatalkan' ? 'bg-rose-100 text-rose-800 border border-rose-200' :
+                            item.status === 'Diarsipkan' ? 'bg-slate-100 text-slate-700 border border-slate-200' :
+                            'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                        }">${escapeHtml(item.status || 'Aktif')}</span>
+                    </div>
+                    <button onclick="copyToClipboard('${numEsc}')" title="Salin Nomor Surat" class="opacity-0 group-hover:opacity-100 text-blue-600 hover:text-blue-800 transition px-2 py-1 bg-blue-100 rounded text-xs ml-1">
                         <i class="fa-regular fa-copy"></i>
                     </button>
                 </td>
@@ -653,6 +660,9 @@ function openEditSuratModal(item) {
     document.getElementById('editPembuat').value = item.pembuat || '';
     document.getElementById('editTanggalSurat').value = item.tanggalSurat || '';
 
+    const editStatus = document.getElementById('editStatusSurat');
+    if (editStatus) editStatus.value = item.status || 'Aktif';
+
     const modal = document.getElementById('editSuratModal');
     if (modal) modal.classList.remove('hidden');
 }
@@ -675,6 +685,7 @@ async function handleUpdateSurat(e) {
     const keperluan = document.getElementById('editKeperluan').value.trim();
     const pembuat = document.getElementById('editPembuat').value.trim();
     const tanggalSurat = document.getElementById('editTanggalSurat').value.trim();
+    const status = document.getElementById('editStatusSurat') ? document.getElementById('editStatusSurat').value : 'Aktif';
 
     if (btn) btn.disabled = true;
     if (spinner) spinner.classList.remove('hidden');
@@ -686,7 +697,7 @@ async function handleUpdateSurat(e) {
             headers: { 'Content-Type': 'text/plain;charset=utf-8' },
             body: JSON.stringify({
                 action: 'updateSurat',
-                rowIndex, nomorLengkap, uraian, keperluan, pembuat, tanggalSurat
+                rowIndex, nomorLengkap, uraian, keperluan, pembuat, tanggalSurat, status
             })
         });
 
@@ -816,7 +827,10 @@ window.toggleSortColumn = function(colName) {
 };
 
 // Modal Result Generator & Copy Button
-function showResultModal(nomorSurat) {
+let lastGeneratedData = {};
+
+function showResultModal(nomorSurat, extraData = {}) {
+    lastGeneratedData = { nomor: nomorSurat, ...extraData };
     const resultModal = document.getElementById('resultModal');
     const resultText = document.getElementById('resultNomorText');
     if (resultText) resultText.innerText = nomorSurat;
@@ -827,6 +841,20 @@ function closeResultModal() {
     const resultModal = document.getElementById('resultModal');
     if (resultModal) resultModal.classList.add('hidden');
 }
+
+function shareResultWhatsApp() {
+    const resultEl = document.getElementById('resultNomorText');
+    const resultNo = resultEl ? resultEl.innerText.trim() : '';
+    if (!resultNo || resultNo === '---') return;
+
+    const instansi = masterSettings.namaKesatuan || "POLSEK POLEN";
+    const text = `*${instansi.toUpperCase()}*\n*NOMOR SURAT RESMI*\n----------------------------------------\n*Nomor Surat:* ${resultNo}\n*Uraian/Perihal:* ${lastGeneratedData.uraian || '-'}\n*Keperluan/Tujuan:* ${lastGeneratedData.keperluan || '-'}\n*Pembuat:* ${lastGeneratedData.pembuat || '-'}\n*Tanggal:* ${lastGeneratedData.tanggalSurat || '-'}\n----------------------------------------\n_Sistem Penomoran Surat Otomatis_`;
+
+    const waUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`;
+    window.open(waUrl, '_blank');
+}
+
+window.shareResultWhatsApp = shareResultWhatsApp;
 
 function copyResultNumber() {
     const resultText = document.getElementById('resultNomorText').innerText;
@@ -1430,6 +1458,71 @@ window.openExportModal = openExportModal;
 window.closeExportModal = closeExportModal;
 window.executeExportExcel = executeExportExcel;
 window.executePrintReport = executePrintReport;
+window.exportBackupJSON = exportBackupJSON;
+window.importBackupJSON = importBackupJSON;
+
+// Fungsi Export & Import Backup Database JSON
+function exportBackupJSON() {
+    const backupData = {
+        app: "PenomoranSuratPolsek",
+        version: "1.0.9",
+        timestamp: new Date().toISOString(),
+        settings: masterSettings,
+        categories: masterCategories,
+        klasifikasi: masterKlasifikasi,
+        users: masterUsers,
+        history: masterHistory
+    };
+
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(backupData, null, 2));
+    const downloadAnchor = document.createElement('a');
+    const instansiClean = (masterSettings.singkatan || 'PolsekPolen').replace(/[^a-zA-Z0-9]/g, '');
+    const dateStr = new Date().toISOString().slice(0, 10);
+    
+    downloadAnchor.setAttribute("href", dataStr);
+    downloadAnchor.setAttribute("download", `BackupData_${instansiClean}_${dateStr}.json`);
+    document.body.appendChild(downloadAnchor);
+    downloadAnchor.click();
+    downloadAnchor.remove();
+
+    showToast("Backup Berhasil", "File cadangan JSON berhasil diunduh.", "success");
+}
+
+function importBackupJSON(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        try {
+            const data = JSON.parse(e.target.result);
+            if (data.history || data.categories || data.settings) {
+                if (data.settings) masterSettings = data.settings;
+                if (data.categories) masterCategories = data.categories;
+                if (data.klasifikasi) masterKlasifikasi = data.klasifikasi;
+                if (data.users) masterUsers = data.users;
+                if (data.history) masterHistory = data.history;
+
+                saveCacheToLocal();
+                applyInstitutionalSettings(masterSettings);
+                renderCategories(masterCategories);
+                renderKlasifikasi(masterKlasifikasi);
+                renderPembuatDropdown(masterUsers);
+                renderHistoryTable(masterHistory);
+                updateAutocompleteDatalists();
+                populateExistingCategorySelect();
+                updateLivePreview();
+
+                showToast("Restore Berhasil", "Seluruh data riwayat, kategori, dan identitas instansi berhasil dipulihkan!", "success");
+            } else {
+                showToast("File Tidak Valid", "Format file JSON backup tidak sesuai.", "error");
+            }
+        } catch (err) {
+            showToast("Error Import", "Gagal membaca file JSON.", "error");
+        }
+    };
+    reader.readAsText(file);
+}
 
 // Open Export Modal & Populate Category Options (Membaca seluruh masterCategories & history)
 function openExportModal() {

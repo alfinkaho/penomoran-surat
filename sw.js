@@ -1,8 +1,8 @@
-const CACHE_NAME = 'penomoran-surat-v13';
+const CACHE_NAME = 'penomoran-surat-v14';
 const ASSETS = [
     './',
     './index.html',
-    './app.js?v=1.0.9',
+    './app.js?v=1.1.0',
     './manifest.json',
     'https://cdn.tailwindcss.com',
     'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css',
