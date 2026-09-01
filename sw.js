@@ -1,35 +1,16 @@
-const CACHE_NAME = 'penomoran-surat-v16';
-const LOCAL_ASSETS = [
+const CACHE_NAME = 'penomoran-surat-v17';
+const ASSETS = [
     './',
     './index.html',
-    './app.js?v=1.1.2',
+    './app.js?v=1.1.3',
     './manifest.json'
 ];
 
-const EXTERNAL_ASSETS = [
-    'https://cdn.tailwindcss.com',
-    'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css',
-    'https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap',
-    'https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200'
-];
-
-// Install Service Worker & Pre-cache essential assets
+// Install Service Worker & Pre-cache essential app shell assets
 self.addEventListener('install', (e) => {
     e.waitUntil(
-        caches.open(CACHE_NAME).then(async (cache) => {
-            // Pre-cache asset lokal terlebih dahulu
-            await cache.addAll(LOCAL_ASSETS);
-            
-            // Pre-cache asset CDN pihak ketiga dengan mode 'no-cors' untuk mencegah CORS Error di Console
-            for (const url of EXTERNAL_ASSETS) {
-                try {
-                    const req = new Request(url, { mode: 'no-cors' });
-                    const res = await fetch(req);
-                    if (res) await cache.put(req, res);
-                } catch (err) {
-                    console.warn('Notice pre-caching CDN asset:', url);
-                }
-            }
+        caches.open(CACHE_NAME).then((cache) => {
+            return cache.addAll(ASSETS);
         })
     );
     self.skipWaiting();
@@ -55,12 +36,12 @@ self.addEventListener('activate', (e) => {
 self.addEventListener('fetch', (e) => {
     if (e.request.method !== 'GET') return;
 
-    // Abaikan API Google Apps Script
+    // Abaikan API Google Apps Script & URL non-http
     if (e.request.url.includes('script.google.com') || !e.request.url.startsWith('http')) {
         return;
     }
 
-    // Strategi Stale-While-Revalidate untuk Fonts & CDN CSS (Loading 0ms)
+    // Strategi Stale-While-Revalidate untuk Fonts & CDN CSS (FontAwesome, Google Fonts, Tailwind)
     if (e.request.url.includes('fonts.googleapis.com') || 
         e.request.url.includes('fonts.gstatic.com') || 
         e.request.url.includes('cdnjs.cloudflare.com') ||
@@ -68,8 +49,8 @@ self.addEventListener('fetch', (e) => {
         e.respondWith(
             caches.open(CACHE_NAME).then(async (cache) => {
                 const cachedResponse = await cache.match(e.request);
-                const fetchPromise = fetch(e.request, { mode: 'no-cors' }).then((networkResponse) => {
-                    if (networkResponse) {
+                const fetchPromise = fetch(e.request).then((networkResponse) => {
+                    if (networkResponse && (networkResponse.status === 200 || networkResponse.type === 'opaque')) {
                         cache.put(e.request, networkResponse.clone());
                     }
                     return networkResponse;
