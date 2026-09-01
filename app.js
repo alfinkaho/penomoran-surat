@@ -1099,16 +1099,29 @@ async function deleteUser(nrp) {
 }
 
 // Toggle Visibility Password Input dengan Icon Google Material Symbols Standard
-function togglePasswordVisibility(inputId, btnEl) {
+function togglePasswordVisibility(inputId, btnEl, event) {
+    if (event) {
+        if (typeof event.preventDefault === 'function') event.preventDefault();
+        if (typeof event.stopPropagation === 'function') event.stopPropagation();
+    }
     const input = document.getElementById(inputId);
     if (!input) return;
-    const icon = btnEl ? btnEl.querySelector('.material-symbols-outlined') : null;
-    if (input.type === 'password') {
-        input.type = 'text';
-        if (icon) icon.textContent = 'visibility_off';
-    } else {
-        input.type = 'password';
-        if (icon) icon.textContent = 'visibility';
+
+    const currentType = input.getAttribute('type') || input.type;
+    const isPassword = currentType === 'password';
+    const newType = isPassword ? 'text' : 'password';
+
+    input.type = newType;
+    input.setAttribute('type', newType);
+
+    const btn = btnEl || (event ? event.currentTarget : null);
+    if (btn) {
+        const icon = btn.querySelector('.material-symbols-outlined') || btn.querySelector('span') || btn.querySelector('i');
+        if (icon) {
+            icon.textContent = isPassword ? 'visibility_off' : 'visibility';
+            icon.innerText = isPassword ? 'visibility_off' : 'visibility';
+        }
+        btn.setAttribute('title', isPassword ? 'Sembunyikan Password' : 'Tampilkan Password');
     }
 }
 
