@@ -3,6 +3,7 @@
   "short_name": "Penomoran Polen",
   "description": "Aplikasi pencatatan dan penomoran surat otomatis Polsek Polen",
   "start_url": "./index.html",
+  "Scope": "/",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#1e3a8a",
