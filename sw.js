@@ -1,12 +1,16 @@
-const CACHE_NAME = 'penomoran-surat-v9';
+const CACHE_NAME = 'penomoran-surat-v10';
 const ASSETS = [
     './',
     './index.html',
-    './app.js?v=1.0.5',
-    './manifest.json'
+    './app.js?v=1.0.6',
+    './manifest.json',
+    'https://cdn.tailwindcss.com',
+    'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css',
+    'https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap',
+    'https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200'
 ];
 
-// Install Service Worker & Cache essential assets securely
+// Install Service Worker & Pre-cache essential assets
 self.addEventListener('install', (e) => {
     e.waitUntil(
         caches.open(CACHE_NAME).then(async (cache) => {
@@ -14,7 +18,7 @@ self.addEventListener('install', (e) => {
                 try {
                     await cache.add(asset);
                 } catch (err) {
-                    console.warn('Gagal memuat cache asset:', asset, err);
+                    console.warn('Pre-cache asset notice:', asset);
                 }
             }
         })
@@ -22,7 +26,7 @@ self.addEventListener('install', (e) => {
     self.skipWaiting();
 });
 
-// Activate Service Worker & Delete Old Caches
+// Activate Service Worker & Clear Stale Caches
 self.addEventListener('activate', (e) => {
     e.waitUntil(
         caches.keys().then((keys) => {
@@ -38,17 +42,36 @@ self.addEventListener('activate', (e) => {
     self.clients.claim();
 });
 
-// Intercept Requests (Network First Strategy)
+// Intercept Requests (Stale-While-Revalidate for Fonts/CDN, Network-First for App Assets)
 self.addEventListener('fetch', (e) => {
-    // Hanya tangani metode GET
     if (e.request.method !== 'GET') return;
-    
-    // Abaikan API Google Apps Script & URL non-HTTP
+
+    // Abaikan API Google Apps Script
     if (e.request.url.includes('script.google.com') || !e.request.url.startsWith('http')) {
         return;
     }
 
-    // Strategi Network-First untuk semua resource lokal agar pembaruan kode selalu terambil fresh dari server
+    // Strategi Stale-While-Revalidate untuk Fonts & CDN CSS (Loading 0ms)
+    if (e.request.url.includes('fonts.googleapis.com') || 
+        e.request.url.includes('fonts.gstatic.com') || 
+        e.request.url.includes('cdnjs.cloudflare.com') ||
+        e.request.url.includes('cdn.tailwindcss.com')) {
+        e.respondWith(
+            caches.open(CACHE_NAME).then(async (cache) => {
+                const cachedResponse = await cache.match(e.request);
+                const fetchPromise = fetch(e.request).then((networkResponse) => {
+                    if (networkResponse && networkResponse.status === 200) {
+                        cache.put(e.request, networkResponse.clone());
+                    }
+                    return networkResponse;
+                }).catch(() => null);
+                return cachedResponse || fetchPromise;
+            })
+        );
+        return;
+    }
+
+    // Network-First untuk asset aplikasi utama dengan fallback cache
     e.respondWith(
         fetch(e.request)
             .then((networkResponse) => {
