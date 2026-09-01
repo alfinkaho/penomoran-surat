@@ -160,6 +160,7 @@ async function handleLogin(e) {
 function handleLogout() {
     currentUser = null;
     localStorage.removeItem('polsek_user');
+    sessionStorage.clear();
 
     // Tutup semua modal yang terbuka
     closeAdminModal();
@@ -168,18 +169,11 @@ function handleLogout() {
     // Reset form penomoran & dropdown pembuat
     const suratForm = document.getElementById('suratForm');
     if (suratForm) suratForm.reset();
-    initDefaultDate();
 
-    const pembuatSelect = document.getElementById('pembuatSelect');
-    if (pembuatSelect) pembuatSelect.selectedIndex = 0;
-
-    // Perbarui UI secara instan tanpa perlu refresh
     updateAuthUI();
 
-    showToast("Logout Berhasil", "Anda telah keluar dari aplikasi.", "info");
-
-    // Langsung buka modal login agar pengguna dapat langsung bereaksi
-    openLoginModal();
+    // Otomatis refresh / reload halaman aplikasi secara penuh
+    window.location.reload();
 }
 
 // Fetch Data Master (Settings, Categories, Klasifikasi, History, Users)
